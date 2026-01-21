@@ -1,0 +1,24 @@
+:root{
+  --bg: #fbfbfc;
+  --panel: #ffffff;
+  --border: #e6e6ea;
+  --muted: #6b7280;
+  --text: #111827;
+
+  --nav-active-bg: #eef2ff;
+  --nav-hover-bg: #f3f4f6;
+
+  --missing-bg: #fff6e5;
+  --row-alt: #fcfcfd;
+}
+
+* { box-sizing: border-box; }
+
+body{
+  margin:0;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  color: var(--text);
+  background: var(--bg);
+}
+
+h2{ margin: 0; }

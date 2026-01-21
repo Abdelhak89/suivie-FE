@@ -1,0 +1,91 @@
+.drawerOverlay{
+  position: fixed;
+  inset: 0;
+  background: rgba(17,24,39,.35);
+  display: flex;
+  justify-content: flex-end;
+  z-index: 999;
+}
+
+.drawer{
+  width: min(560px, 92vw);
+  height: 100%;
+  background: var(--panel);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+}
+
+.drawerHeader{
+  padding: 14px 14px 10px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.drawerTitle{ font-weight: 900; font-size: 16px; }
+.drawerSub{ color: var(--muted); font-size: 13px; margin-top: 4px; }
+
+.drawerClose{
+  border: 1px solid var(--border);
+  background: white;
+  border-radius: 10px;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+.drawerBody{
+  padding: 14px;
+  overflow: auto;
+}
+
+.drawerSection{ margin-bottom: 16px; }
+.drawerSectionTitle{
+  font-weight: 900;
+  margin-bottom: 10px;
+}
+
+.kv{ border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+.kvRow{ display: grid; grid-template-columns: 160px 1fr; }
+.kvKey{ padding: 10px; background: #fafafb; font-weight: 800; border-bottom: 1px solid var(--border); }
+.kvVal{ padding: 10px; border-bottom: 1px solid var(--border); }
+
+.dataList{
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.dataRow{
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  border-bottom: 1px solid #f0f0f3;
+}
+
+.dataKey{
+  padding: 10px;
+  background: #fafafb;
+  font-weight: 700;
+}
+
+.dataVal{
+  padding: 10px;
+  word-break: break-word;
+}
+
+.drawerFooter{
+  padding: 12px 14px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: flex-end;
+}
+
+.btn{
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: white;
+  cursor: pointer;
+}

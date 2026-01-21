@@ -1,0 +1,15 @@
+services:
+  db:
+    image: postgres:16
+    container_name: suivi_fe_db
+    environment:
+      POSTGRES_USER: fe
+      POSTGRES_PASSWORD: fe
+      POSTGRES_DB: suivi_fe
+    ports:
+      - "5433:5432"
+    volumes:
+      - suivi_fe_pg:/var/lib/postgresql/data
+
+volumes:
+  suivi_fe_pg:
