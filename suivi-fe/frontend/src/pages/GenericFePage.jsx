@@ -1,51 +1,45 @@
+// src/pages/GenericFePage.jsx
 import { useEffect, useMemo, useState } from "react";
 import FeGrid from "../components/FeGrid.jsx";
 import FeDrawer from "../components/FeDrawer.jsx";
 import EditCellModal from "../components/EditCellModal.jsx";
 import Analyse6MModal from "../components/Analyse6MModal.jsx";
-import { PAGES } from "../config/fePages.js";
-import { getField } from "../config/fieldMap.js";
 import PlanActionModal from "../components/PlanActionModal.jsx";
-
-const cleanKey = (k) =>
-  String(k || "")
-    .trim()
-    .replace(/\s+/g, " ")
-    .replace(/\//g, "_")
-    .replace(/[.]/g, "")
-    .replace(/[%]/g, "pct");
-
-const getDataValue = (row, label) => {
-  const data = row?.data;
-  if (!data || typeof data !== "object") return "";
-
-  // label exact
-  if (data[label] != null) return String(data[label]);
-
-  // label nettoyé (au cas où)
-  const ck = cleanKey(label);
-  if (data[ck] != null) return String(data[ck]);
-
-  // variante apostrophe typographique
-  if (label === "Plan d'action") {
-    const alt = "Plan d’action";
-    if (data[alt] != null) return String(data[alt]);
-    const altCk = cleanKey(alt);
-    if (data[altCk] != null) return String(data[altCk]);
-  }
-
-  return "";
-};
-
+import { PAGES } from "../config/fePages.js";
+import { getField, getRawField } from "../config/fieldMap.js";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:3001";
+
+const D2R_OPTIONS = ["ACCEPTE EN L'ETAT", "ANNULE", "DEROGATION", "N/A", "REBUT", "RETOUCHE"];
+
+function safeJsonParse(s) {
+  if (!s) return null;
+  if (typeof s === "object") return s;
+  try {
+    return JSON.parse(String(s));
+  } catch {
+    return null;
+  }
+}
+
+function planIsComplete(planRaw) {
+  const arr = safeJsonParse(planRaw);
+  if (!Array.isArray(arr) || arr.length === 0) return false;
+
+  return arr.every((a) => {
+    const textOk = String(a?.text || "").trim().length > 0;
+    if (!textOk) return false;
+    if (a?.done) return true;
+    if (a?.notRealizable && String(a?.note || "").trim()) return true;
+    return false;
+  });
+}
 
 export default function GenericFePage({ pageKey, titleOverride }) {
   const config = PAGES[pageKey] || {
     title: titleOverride ?? pageKey,
     groups: [{ label: "Données", columns: [] }],
   };
-console.log(config.groups.flatMap(g => g.columns));
 
   const [items, setItems] = useState([]);
   const [total, setTotal] = useState(0);
@@ -56,14 +50,13 @@ console.log(config.groups.flatMap(g => g.columns));
 
   const [page, setPage] = useState(1);
   const pageSize = 50;
-
   const [annee, setAnnee] = useState("2026");
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState(null);
 
   const [editOpen, setEditOpen] = useState(false);
-  const [editCtx, setEditCtx] = useState(null); // { rowId, label, current }
+  const [editCtx, setEditCtx] = useState(null);
 
   useEffect(() => {
     const ctrl = new AbortController();
@@ -78,19 +71,15 @@ console.log(config.groups.flatMap(g => g.columns));
     if (annee) params.set("annee", annee);
 
     fetch(`${API}/fe?${params.toString()}`, { signal: ctrl.signal })
-  .then((r) => r.json())
-  .then((d) => {
-    setItems(d.items || []);
-    setTotal(d.total || 0);
-  })
-  .catch((e) => {
-    // ✅ en dev React 18, les effets sont doublés => abort normal
-    if (e?.name !== "AbortError") {
-      console.error("FETCH /fe ERROR:", e);
-    }
-  })
-  .finally(() => setLoading(false));
-
+      .then((r) => r.json())
+      .then((d) => {
+        setItems(d.items || []);
+        setTotal(d.total || 0);
+      })
+      .catch((e) => {
+        if (e?.name !== "AbortError") console.error("FETCH /fe ERROR:", e);
+      })
+      .finally(() => setLoading(false));
 
     return () => ctrl.abort();
   }, [pageKey, page, q, annee]);
@@ -98,75 +87,47 @@ console.log(config.groups.flatMap(g => g.columns));
   const displayedRows = useMemo(() => {
     if (!onlyMissing) return items;
     const cols = config.groups.flatMap((g) => g.columns);
-    return items.filter((r) =>
-      cols.some((c) => !String(getField(r, c) ?? "").trim()),
-    );
+    return items.filter((r) => cols.some((c) => !String(getRawField(r, c) ?? "").trim()));
   }, [onlyMissing, items, config]);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
-  const onChangeQ = (v) => {
-    setPage(1);
-    setQ(v);
-  };
-
-  const onChangeYear = (v) => {
-    setPage(1);
-    setAnnee(v);
-  };
-
   const openDetail = async (id) => {
     setDrawerOpen(true);
-    setSelectedRecord({
-      numero_fe: "",
-      statut: "",
-      data: { Chargement: "..." },
-    });
+    setSelectedRecord({ numero_fe: "", statut: "", data: { Chargement: "..." } });
 
     try {
       const r = await fetch(`${API}/fe/${id}`);
       const d = await r.json();
       setSelectedRecord(d);
     } catch {
-      setSelectedRecord({
-        numero_fe: "",
-        statut: "",
-        data: { Erreur: "Impossible de charger le détail" },
-      });
+      setSelectedRecord({ numero_fe: "", statut: "", data: { Erreur: "Impossible de charger le détail" } });
     }
   };
 
-  const openEditCell = (row, label, current) => {
-      if (label === "Plan d'action") {
-    const rawAnalyse = getDataValue(row, "Analyse");
-    const rawPlan = getDataValue(row, "Plan d'action"); // ✅ vraie valeur, pas le token
-    setEditCtx({
-      rowId: row.id,
-      label,
-      current: rawPlan,
-      analyse: rawAnalyse,
-      row,
-    });
-    setEditOpen(true);
-    return;
-  }
+  const openEditCell = (row, label, rawValue) => {
+    const current = rawValue ?? getRawField(row, label) ?? "";
 
-
-    if (label === "Plan d'action") {
-      const rawAnalyse =
-        (row?.data && (row.data["Analyse"] ?? row.data["analyse"])) || "";
-      setEditCtx({
-        rowId: row.id,
-        label,
-        current: current ?? "",
-        analyse: rawAnalyse,
-        row,
-      });
+    if (label === "Analyse") {
+      setEditCtx({ rowId: row.id, label, current });
       setEditOpen(true);
       return;
     }
 
-    setEditCtx({ rowId: row.id, label, current: current ?? "", row });
+    if (label === "Plan d'action") {
+      const analyse = String(getRawField(row, "Analyse") || "");
+      setEditCtx({ rowId: row.id, label, current, analyse });
+      setEditOpen(true);
+      return;
+    }
+
+    if (label === "D2R") {
+      setEditCtx({ rowId: row.id, label, current, mode: "select", options: D2R_OPTIONS });
+      setEditOpen(true);
+      return;
+    }
+
+    setEditCtx({ rowId: row.id, label, current, mode: "text", options: null });
     setEditOpen(true);
   };
 
@@ -186,89 +147,62 @@ console.log(config.groups.flatMap(g => g.columns));
       return;
     }
 
-    setItems((prev) =>
-      prev.map((x) => {
-        if (x.id !== ctx.rowId) return x;
-        if (d.item?.data) return { ...x, ...d.item };
-        const data = { ...(x.data || {}) };
-        data[ctx.label] = newValue;
-        return { ...x, data };
-      }),
-    );
-
-    setSelectedRecord((prev) => {
-      if (!prev || prev.id !== ctx.rowId) return prev;
-      if (d.item) return { ...prev, ...d.item };
-      const data = { ...(prev.data || {}) };
-      data[ctx.label] = newValue;
-      return { ...prev, data };
-    });
+    setItems((prev) => prev.map((x) => (x.id !== ctx.rowId ? x : { ...x, ...d.item })));
+    setSelectedRecord((prev) => (!prev || prev.id !== ctx.rowId ? prev : { ...prev, ...d.item }));
 
     setEditOpen(false);
     setEditCtx(null);
   };
 
+  const canCloseRow = (row) => {
+    const planRaw = String(getRawField(row, "Plan d'action") || "");
+    return planIsComplete(planRaw);
+  };
+
+  const onCloseRow = async (row) => {
+    if (!canCloseRow(row)) {
+      alert("Plan d’action non terminé : coche toutes les actions (fait / non réalisable + note).");
+      return;
+    }
+
+    const r = await fetch(`${API}/fe/${row.id}/close`, { method: "POST" });
+    const d = await r.json();
+
+    if (!d?.ok) {
+      alert(d?.error || "Erreur clôture");
+      return;
+    }
+
+    setItems((prev) => prev.map((x) => (x.id !== row.id ? x : { ...x, ...d.item })));
+    setSelectedRecord((prev) => (!prev || prev.id !== row.id ? prev : { ...prev, ...d.item }));
+  };
+
   return (
     <div>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "baseline",
-          gap: 10,
-          flexWrap: "wrap",
-        }}
-      >
+      <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
         <h2>{config.title}</h2>
-        <span style={{ color: "#6b7280" }}>
-          {loading ? "chargement..." : `${total} lignes`}
-        </span>
+        <span style={{ color: "#6b7280" }}>{loading ? "chargement..." : `${total} lignes`}</span>
       </div>
 
-      <div
-        className="legend"
-        style={{ justifyContent: "space-between", flexWrap: "wrap" }}
-      >
-        <div
-          style={{
-            display: "flex",
-            gap: 16,
-            alignItems: "center",
-            flexWrap: "wrap",
-          }}
-        >
+      <div className="legend" style={{ justifyContent: "space-between", flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
           <span>
             <span className="pillMissing" /> Champ vide
           </span>
 
           <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <input
-              type="checkbox"
-              checked={onlyMissing}
-              onChange={(e) => setOnlyMissing(e.target.checked)}
-            />
+            <input type="checkbox" checked={onlyMissing} onChange={(e) => setOnlyMissing(e.target.checked)} />
             Afficher uniquement les FE incomplètes (page courante)
           </label>
 
           <span style={{ color: "#6b7280", fontSize: 13 }}>
-            Astuce : clique sur une cellule vide pour remplir (Analyse ouvre le
-            6M)
+            Astuce : clique sur une cellule pour afficher/éditer (Analyse ouvre le 6M)
           </span>
         </div>
 
-        <div
-          style={{
-            display: "flex",
-            gap: 10,
-            alignItems: "center",
-            flexWrap: "wrap",
-          }}
-        >
+        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
           <span style={{ color: "#6b7280", fontSize: 13 }}>Année :</span>
-          <select
-            value={annee}
-            onChange={(e) => onChangeYear(e.target.value)}
-            style={selectStyle}
-          >
+          <select value={annee} onChange={(e) => setAnnee(e.target.value)} style={selectStyle}>
             <option value="2026">2026</option>
             <option value="2025">2025</option>
             <option value="2024">2024</option>
@@ -277,17 +211,16 @@ console.log(config.groups.flatMap(g => g.columns));
 
           <input
             value={q}
-            onChange={(e) => onChangeQ(e.target.value)}
+            onChange={(e) => {
+              setPage(1);
+              setQ(e.target.value);
+            }}
             placeholder="Rechercher (FE, REF, désignation, lancement...)"
             style={inputStyle}
           />
 
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <button
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={page <= 1 || loading}
-              style={btnStyle}
-            >
+            <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1 || loading} style={btnStyle}>
               ←
             </button>
 
@@ -295,11 +228,7 @@ console.log(config.groups.flatMap(g => g.columns));
               Page <b>{page}</b> / {totalPages}
             </span>
 
-            <button
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              disabled={page >= totalPages || loading}
-              style={btnStyle}
-            >
+            <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages || loading} style={btnStyle}>
               →
             </button>
           </div>
@@ -310,20 +239,17 @@ console.log(config.groups.flatMap(g => g.columns));
         config={config}
         rows={displayedRows}
         getValue={(row, colLabel) => getField(row, colLabel)}
+        getRawValue={(row, colLabel) => getRawField(row, colLabel)}
         highlightMissing={true}
         onRowClick={(row) => openDetail(row.id)}
-        onCellClick={(row, colLabel, value) =>
-          openEditCell(row, colLabel, value)
-        }
+        onCellClick={(row, colLabel, rawValue) => openEditCell(row, colLabel, rawValue)}
+        showCloseColumn={true}
+        canCloseRow={canCloseRow}
+        onCloseRow={onCloseRow}
       />
 
-      <FeDrawer
-        open={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
-        record={selectedRecord}
-      />
+      <FeDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} record={selectedRecord} />
 
-      {/* ✅ Modal 6M pour Analyse */}
       <Analyse6MModal
         open={editOpen && editCtx?.label === "Analyse"}
         initialValue={editCtx?.current ?? ""}
@@ -345,15 +271,12 @@ console.log(config.groups.flatMap(g => g.columns));
         onSave={saveEditCell}
       />
 
-      {/* ✅ Modal simple pour le reste */}
       <EditCellModal
-        open={
-          editOpen &&
-          editCtx?.label !== "Analyse" &&
-          editCtx?.label !== "Plan d'action"
-        }
+        open={editOpen && editCtx?.label !== "Analyse" && editCtx?.label !== "Plan d'action"}
         title={editCtx ? `Modifier : ${editCtx.label}` : "Modifier"}
         initialValue={editCtx?.current ?? ""}
+        mode={editCtx?.mode ?? "text"}
+        options={editCtx?.options ?? null}
         onCancel={() => {
           setEditOpen(false);
           setEditCtx(null);

@@ -12,9 +12,12 @@ export const MENU = [
   { key: "derogation", label: "Dérogation", path: "/derogation" },
   { key: "kpi", label: "KPI", path: "/kpi" },
   { key: "alerte-qualite", label: "Alerte qualité", path: "/alerte-qualite" },
-  { key: "clinique-qualite", label: "Clinique qualité", path: "/clinique-qualite" },
+  {
+    key: "clinique-qualite",
+    label: "Clinique qualité",
+    path: "/clinique-qualite",
+  },
 ];
-
 // ===============================
 // CONFIG “tableau à remplir”
 // ===============================
@@ -23,45 +26,82 @@ export const PAGES = {
     title: "Interne série",
     groups: [
       { label: "Suivi", columns: ["N° FE", "QUAND", "Statut"] },
-      { label: "Quoi", columns: ["REF", "Désignation", "Lancement", "Description"] },
+      {
+        label: "Quoi",
+        columns: ["REF", "Désignation", "Lancement", "Description"],
+      },
       { label: "Combien", columns: ["Qté NC", "Qté Produite"] },
-      { label: "Où", columns: ["Type NC", "Lieu", "Détection"] },      
+      { label: "Où", columns: ["Type NC", "Détection"] }, // ✅ Détection = Lieu Detection (Excel)
       {
         label: "Comment",
         columns: [
           "D2R",
-          "Analyse",            // ✅ remplace Méthode/Matière/...
-          "Ilot Générateur",    // ✅ on garde
-          "Plan d'action",      // ✅ on garde
-          "Mesure efficacité",  // ✅ on garde
+          "Analyse", // ✅ nouvelle colonne (popup 6M)
+          "Ilot Générateur", // ✅ = ILOT GENERATEUR (Excel)
+          "Plan d'action", // ✅ pastille 🟠/🟢 + popup
+          "Mesure efficacité",
         ],
       },
+      // exemple : Interne série
+      
     ],
   },
-
   "interne-fai": {
     title: "Interne FAI",
     groups: [
       { label: "Suivi", columns: ["N° FE", "QUAND", "Statut", "Animateur"] },
-      { label: "Quoi", columns: ["REF", "Désignation", "Lancement", "Description"] },
+      {
+        label: "Quoi",
+        columns: ["REF", "Désignation", "Lancement", "Description"],
+      },
       { label: "Combien", columns: ["Qté NC", "Qté Lct", "Qté Produite"] },
       { label: "Où", columns: ["Type NC", "Lieu", "Détection"] },
       { label: "Qui", columns: ["Pilote QSE", "Ilot Générateur"] },
-      { label: "Comment", columns: ["Causes", "Plan d'action", "Mesure efficacité", "Commentaires"] },
+      {
+        label: "Comment",
+        columns: [
+          "Causes",
+          "Plan d'action",
+          "Mesure efficacité",
+          "Commentaires",
+        ],
+      },
     ],
   },
 
   client: {
     title: "Client",
     groups: [
-      { label: "Suivi", columns: ["N° FE", "Client", "NC client", "QUAND", "Statut"] },
-      { label: "Quoi", columns: ["REF", "Désignation", "Lancement", "Commande", "Description", "Typologie défaut"] },
+      {
+        label: "Suivi",
+        columns: ["N° FE", "Client", "NC client", "QUAND", "Statut"],
+      },
+      {
+        label: "Quoi",
+        columns: [
+          "REF",
+          "Désignation",
+          "Lancement",
+          "Commande",
+          "Description",
+          "Typologie défaut",
+        ],
+      },
       { label: "Combien", columns: ["Qté NC", "Qté Lct"] },
       { label: "Où", columns: ["Type NC", "Lieu"] },
       { label: "Qui", columns: ["Pilote NC"] },
       {
         label: "Traitement",
-        columns: ["D2R", "Sécurisation", "Actions conservatoires", "Causes", "Actions correctives", "Actions préventives", "Mesure efficacité", "Clôture"],
+        columns: [
+          "D2R",
+          "Sécurisation",
+          "Actions conservatoires",
+          "Causes",
+          "Actions correctives",
+          "Actions préventives",
+          "Mesure efficacité",
+          "Clôture",
+        ],
       },
     ],
   },
@@ -70,11 +110,24 @@ export const PAGES = {
     title: "Fournisseur",
     groups: [
       { label: "Suivi", columns: ["N° FE", "QUAND", "Statut"] },
-      { label: "Quoi", columns: ["REF", "Désignation", "Lct", "Commande", "Description"] },
+      {
+        label: "Quoi",
+        columns: ["REF", "Désignation", "Lct", "Commande", "Description"],
+      },
       { label: "Combien", columns: ["Qté NC", "Qté reçu"] },
       { label: "Où", columns: ["Lieu", "Fournisseur"] },
       { label: "Qui", columns: ["Pilote NC"] },
-      { label: "Réclamation", columns: ["Date réclamation", "Contact", "Date envoi réclamation", "8D / Analyse réception", "Moyen", "Clôture"] },
+      {
+        label: "Réclamation",
+        columns: [
+          "Date réclamation",
+          "Contact",
+          "Date envoi réclamation",
+          "8D / Analyse réception",
+          "Moyen",
+          "Clôture",
+        ],
+      },
     ],
   },
 };

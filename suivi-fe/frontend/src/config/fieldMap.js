@@ -10,65 +10,69 @@ const cleanKey = (k) =>
 
 const norm = (s) => cleanKey(s).toLowerCase();
 
-/**
- * Colonnes SQL directes
- */
 const DIRECT = {
   "N° FE": "numero_fe",
   "Numéro de FE": "numero_fe",
-  "Statut": "statut",
+  Statut: "statut",
 
-  "REF": "code_article",
+  REF: "code_article",
   "Code Article": "code_article",
 
   "Désignation": "designation",
-  "Designation": "designation",
+  Designation: "designation",
 
-  "Lancement": "code_lancement",
+  Lancement: "code_lancement",
   "Code Lancement": "code_lancement",
+  Lct: "code_lancement",
 
-  "Animateur": "animateur",
-  "Semaine": "semaine",
-  "Année": "annee",
-  "année": "annee",
+  Fournisseur: "nom_fournisseur",
+  "Nom Fournisseur": "nom_fournisseur",
 
-  "QUAND": "date_creation",
+  Animateur: "animateur",
+  Semaine: "semaine",
+  année: "annee",
+  Année: "annee",
+
+  QUAND: "date_creation",
   "Date de création": "date_creation",
 };
 
-/**
- * 🔁 ALIAS Excel → UI (LA CLÉ DU PROBLÈME)
- */
+// ✅ tes réassignations Excel -> App (DATA jsonb)
 const DATA_ALIASES = {
-  // 🔴 quantités
-  "Qté NC": ["Qté Rebuts (pcs)", "Qte Rebuts (pcs)"],
-  "Qté Produite": ["Qte produite", "Qté produite"],
-
-  // 🔴 détection
-  "Détection": ["Lieu Detection", "Lieu détection"],
-
-  // 🔴 ilot
+  // (si besoin, garde tes alias existants)
+  "Qté NC": ["Qté Rebuts (pcs)", "Qte Rebuts (pcs)", "Qté Rebuts pcs"],
+  "Qté Produite": ["Qte produite", "Qté produite", "Qte Produite"],
+  "Détection": ["Lieu Detection", "Lieu détection", "Lieu detection"],
   "Ilot Générateur": ["ILOT GENERATEUR", "Ilot générateur", "Ilot generateur"],
-
-  // 🔴 désignation fallback
-  "Désignation": ["Details de l'anomalie", "Détails de l'anomalie"],
 };
 
-/**
- * Lecture générique dans data JSON
- */
-function getFromData(data, label) {
+function getFromDataByLabel(data, label) {
   if (!data || typeof data !== "object") return "";
 
-  const key = cleanKey(label);
-  if (data[key] != null) return data[key];
+  // exact
+  if (data[label] !== undefined && data[label] !== null) return data[label];
 
-  const aliases = DATA_ALIASES[label] || [];
-  for (const a of aliases) {
-    const ka = cleanKey(a);
-    if (data[ka] != null) return data[ka];
+  // cleaned
+  const k1 = cleanKey(label);
+  if (data[k1] !== undefined && data[k1] !== null) return data[k1];
+
+  // Plan d'action typographic apostrophe
+  if (label === "Plan d'action") {
+    const alt = "Plan d’action";
+    if (data[alt] !== undefined && data[alt] !== null) return data[alt];
+    const altCk = cleanKey(alt);
+    if (data[altCk] !== undefined && data[altCk] !== null) return data[altCk];
   }
 
+  // aliases
+  const aliases = DATA_ALIASES[label] || [];
+  for (const a of aliases) {
+    if (data[a] !== undefined && data[a] !== null) return data[a];
+    const ka = cleanKey(a);
+    if (data[ka] !== undefined && data[ka] !== null) return data[ka];
+  }
+
+  // normalize fallback
   const wanted = norm(label);
   for (const [k, v] of Object.entries(data)) {
     if (norm(k) === wanted) return v;
@@ -77,42 +81,60 @@ function getFromData(data, label) {
   return "";
 }
 
-/**
- * ✅ Fonction centrale utilisée PARTOUT
- */
-export function getField(row, label) {
+function safeParse(v) {
+  if (!v) return null;
+  if (typeof v === "object") return v;
+  try {
+    return JSON.parse(String(v));
+  } catch {
+    return null;
+  }
+}
+
+function planComplete(planRaw) {
+  const arr = safeParse(planRaw);
+  if (!Array.isArray(arr) || arr.length === 0) return false;
+
+  return arr.every((a) => {
+    const textOk = String(a?.text || "").trim().length > 0;
+    if (!textOk) return false;
+    if (a?.done) return true;
+    if (a?.notRealizable && String(a?.note || "").trim()) return true;
+    return false;
+  });
+}
+
+// ✅ valeur brute (texte complet)
+export function getRawField(row, label) {
   if (!row) return "";
 
-  /**
-   * 🟠 Analyse
-   * - vide → ""
-   * - remplie → 🟠
-   */
+  const directKey = DIRECT[label];
+  if (directKey && row[directKey] !== undefined && row[directKey] !== null) {
+    const v = row[directKey];
+    if (String(v).trim() !== "") return v;
+  }
+
+  return getFromDataByLabel(row.data || null, label);
+}
+
+// ✅ valeur affichée (icônes / pastilles)
+export function getField(row, label) {
+  const raw = getRawField(row, label);
+
+  // Analyse : ✅ si rempli
   if (label === "Analyse") {
-    const v = row.data?.[cleanKey("Analyse")];
-    return String(v || "").trim() ? "🟠" : "";
+    return String(raw || "").trim() ? "✅" : "";
   }
 
-  /**
-   * 🟢 Plan d'action
-   * - vide → ""
-   * - rempli → 🟢
-   */
+  // Plan d'action : 🟢 si plan complet, 🟠 si analyse ok mais plan incomplet
   if (label === "Plan d'action") {
-    const v = row.data?.[cleanKey("Plan d'action")];
-    return String(v || "").trim() ? "🟢" : "";
+    const analyse = String(getRawField(row, "Analyse") || "").trim();
+    const plan = String(raw || "").trim();
+
+    if (plan && planComplete(plan)) return "🟢";
+    if (analyse) return "🟠";
+    return "";
   }
 
-  /**
-   * Champs SQL directs
-   */
-  const direct = DIRECT[label];
-  if (direct && row[direct] != null && String(row[direct]).trim() !== "") {
-    return row[direct];
-  }
-
-  /**
-   * Fallback JSON
-   */
-  return getFromData(row.data, label);
+  return raw;
 }

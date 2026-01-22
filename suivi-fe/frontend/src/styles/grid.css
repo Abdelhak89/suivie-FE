@@ -106,3 +106,113 @@
   background:#f59e0b;
   box-shadow: 0 0 0 2px rgba(245,158,11,.18);
 }
+
+.gridTable td,
+.gridTable th{
+  max-width: 0; /* important pour ellipsis dans un <table> */
+}
+
+/* ✅ tronquage propre dans la cellule */
+.td{
+  padding: 8px 10px;
+  border-bottom: 1px solid #f0f0f3;
+  white-space: nowrap;
+  max-width: 320px;
+
+  overflow: hidden;           /* ✅ */
+  text-overflow: ellipsis;    /* ✅ */
+}
+
+/* ✅ texte dans la cellule (pour garantir l’ellipsis) */
+.cellText{
+  display: block;             /* ✅ */
+  overflow: hidden;           /* ✅ */
+  white-space: nowrap;        /* ✅ */
+  text-overflow: ellipsis;    /* ✅ */
+}
+
+/* optionnel : feedback clic cellule */
+.clickableCell{
+  cursor: pointer;
+}
+.clickableCell:hover{
+  filter: brightness(0.98);
+}
+
+.td{
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cellText{
+  display:block;
+  overflow:hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cellText{
+  display:inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+}
+.td{
+  overflow: hidden; /* important */
+}
+.clickable{
+  cursor: pointer;
+}
+.clickable {
+  cursor: pointer;
+}
+
+.cellText{
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: bottom;
+}
+
+.closeBtn{
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: white;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.closeBtn:hover{
+  border-color: #111827;
+}
+
+.closeBtn.disabled{
+  opacity: .55;
+  cursor: not-allowed;
+}
+
+.cellText{
+  display:block;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  max-width: 100%;
+}
+
+.clickable{
+  cursor: pointer;
+}
+
+.closeBtn{
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: white;
+  cursor: pointer;
+}
+
+.closeBtn.disabled{
+  opacity: .55;
+  cursor: not-allowed;
+}

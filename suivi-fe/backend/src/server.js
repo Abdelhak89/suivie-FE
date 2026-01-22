@@ -3,6 +3,8 @@ import cors from "cors";
 import { pool } from "./db.js";
 import multer from "multer";
 import { importExcelToDb } from "./importExcel.js";
+import "dotenv/config";
+
 
 const app = express();
 app.use(cors());
@@ -69,6 +71,29 @@ app.get("/dashboard", async (req, res) => {
 
     const r = await pool.query(sql, [user, annee]);
     res.json({ ok: true, ...r.rows[0] });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+// dans ton server.js
+app.post("/fe/:id/close", async (req, res) => {
+  try {
+    const id = req.params.id;
+
+    const r = await pool.query(
+      `
+      UPDATE fe_records
+      SET
+        statut = 'Clôturée',
+        data = jsonb_set(COALESCE(data,'{}'::jsonb), '{Statut}', to_jsonb('Clôturée'::text), true)
+      WHERE id = $1
+      RETURNING id, statut, data
+      `,
+      [id]
+    );
+
+    if (!r.rows[0]) return res.status(404).json({ ok: false, error: "Not found" });
+    res.json({ ok: true, item: r.rows[0] });
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message });
   }
@@ -431,18 +456,64 @@ app.get("/fe/:id", async (req, res) => {
 app.get("/health", async (req, res) => {
   res.json({ ok: true });
 });
+app.get("/whoami", async (req, res) => {
+  try {
+    const r = await pool.query(`
+      SELECT
+        current_database() as db,
+        current_schema() as schema,
+        inet_server_addr() as server_addr,
+        inet_server_port() as server_port,
+        current_user as user
+    `);
+    res.json({ ok: true, ...r.rows[0] });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
 
 app.get("/db", async (req, res) => {
   try {
-    const r = await pool.query(
-      "SELECT now() as now, count(*)::int as total FROM fe_records"
-    );
-    res.json(r.rows[0]);
+    const who = await pool.query(`
+      SELECT
+        current_database() as db,
+        current_schema() as schema,
+        current_setting('search_path') as search_path,
+        inet_server_addr() as server_addr,
+        inet_server_port() as server_port,
+        current_user as user
+    `);
+
+    // 1) Liste des tables visibles
+    const tables = await pool.query(`
+      SELECT schemaname, tablename
+      FROM pg_tables
+      WHERE tablename ILIKE 'fe_records%'
+      ORDER BY schemaname, tablename
+    `);
+
+    // 2) Test explicite public.fe_records (évite problème de search_path)
+    let stats = null;
+    try {
+      const r = await pool.query(`SELECT now() as now, count(*)::int as total FROM public.fe_records`);
+      stats = r.rows[0];
+    } catch (e) {
+      stats = { now: null, total: null, table_error: e.message };
+    }
+
+    res.json({
+      ok: true,
+      whoami: who.rows[0],
+      tables: tables.rows,
+      stats,
+    });
   } catch (e) {
     console.error("DB ERROR:", e);
     res.status(500).json({ ok: false, error: e.message });
   }
 });
+
 
 app.listen(3001, () => {
   console.log("API on http://localhost:3001");
