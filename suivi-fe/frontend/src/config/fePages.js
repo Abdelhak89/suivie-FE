@@ -60,7 +60,7 @@ export const PAGES = {
       {
         label: "Comment",
         columns: [
-          "Causes",
+          "Analyse",
           "Plan d'action",
           "Mesure efficacité",
           "Commentaires",

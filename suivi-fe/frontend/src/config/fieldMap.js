@@ -44,6 +44,10 @@ const DATA_ALIASES = {
   "Qté Produite": ["Qte produite", "Qté produite", "Qte Produite"],
   "Détection": ["Lieu Detection", "Lieu détection", "Lieu detection"],
   "Ilot Générateur": ["ILOT GENERATEUR", "Ilot générateur", "Ilot generateur"],
+  "Description": ["Details de l'anomalie"],
+  "Qté NC":["Qte estimee"],
+  "Qté Lct": ["Qte lancement"],
+  "Lieu":["Lieu Detection"],
 };
 
 function getFromDataByLabel(data, label) {
@@ -116,6 +120,35 @@ export function getRawField(row, label) {
 
   return getFromDataByLabel(row.data || null, label);
 }
+function formatDateFR(v) {
+  if (!v) return "";
+
+  // si déjà au format YYYY-MM-DD (stocké DB)
+  const s = String(v).trim();
+  if (!s) return "";
+
+  // ex: "2026-01-22"
+  const mIso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (mIso) {
+    const yyyy = mIso[1];
+    const mm = mIso[2];
+    const dd = mIso[3];
+    return `${dd}/${mm}/${yyyy}`;
+  }
+
+  // si Date JS ou string parsable
+  const d = v instanceof Date ? v : new Date(s);
+  if (!isNaN(d.getTime())) {
+    const dd = String(d.getDate()).padStart(2, "0");
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const yyyy = d.getFullYear();
+    return `${dd}/${mm}/${yyyy}`;
+  }
+
+  // fallback
+  return s;
+}
+
 
 // ✅ valeur affichée (icônes / pastilles)
 export function getField(row, label) {
@@ -125,6 +158,7 @@ export function getField(row, label) {
   if (label === "Analyse") {
     return String(raw || "").trim() ? "✅" : "";
   }
+  
 
   // Plan d'action : 🟢 si plan complet, 🟠 si analyse ok mais plan incomplet
   if (label === "Plan d'action") {
@@ -134,6 +168,12 @@ export function getField(row, label) {
     if (plan && planComplete(plan)) return "🟢";
     if (analyse) return "🟠";
     return "";
+  }
+
+  if (label === "QUAND" || label === "Date de création") {
+    // ta colonne SQL c’est date_creation
+    const v = row?.date_creation ?? "";
+    return formatDateFR(v);
   }
 
   return raw;

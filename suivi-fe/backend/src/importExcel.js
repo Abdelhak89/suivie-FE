@@ -17,6 +17,27 @@ const get = (obj, ...keys) => {
   }
   return null;
 };
+function formatDateFR(v) {
+  if (!v) return "";
+
+  // si c’est déjà YYYY-MM-DD
+  const s = String(v).trim();
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return `${m[3]}/${m[2]}/${m[1]}`;
+
+  // si c’est une date JS ou autre format parseable
+  const d = new Date(s);
+  if (!isNaN(d.getTime())) {
+    const dd = String(d.getDate()).padStart(2, "0");
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const yy = d.getFullYear();
+    return `${dd}/${mm}/${yy}`;
+  }
+
+  return s; // fallback
+}
+
+
 
 // ✅ robuste : cherche une valeur par "clé nettoyée" (tolère espaces/accents/casse)
 const getByCleanKey = (obj, ...wantedKeys) => {
@@ -152,6 +173,25 @@ function pickIndexables(raw) {
       null,
   };
 }
+
+function toYMD(v) {
+  if (!v) return null;
+
+  const d = new Date(v);
+  if (isNaN(d.getTime())) return null;
+
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+
+  return {
+    annee: String(yyyy),
+    mois: mm,
+    jour: dd,
+    iso: `${yyyy}-${mm}-${dd}`,
+  };
+}
+
 
 // ✅ Trouver la vraie ligne d'en-tête (celle qui contient Animateur/Statut/Code Article)
 function findHeaderRow(ws, sheetName) {

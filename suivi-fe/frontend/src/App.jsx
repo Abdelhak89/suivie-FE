@@ -4,6 +4,7 @@ import SidebarLayout from "./layout/SidebarLayout.jsx";
 import GenericFePage from "./pages/GenericFePage.jsx";
 import DashboardPage from "./pages/DashboardPage.jsx";
 import ManagerPage from "./pages/ManagerPage.jsx";
+import AlerteQualitePage from "./pages/AlerteQualitePage.jsx";
 
 export default function App() {
   return (
@@ -37,18 +38,14 @@ export default function App() {
           element={<GenericFePage pageKey="derogation" titleOverride="Dérogation" />}
         />
         <Route path="/kpi" element={<GenericFePage pageKey="kpi" titleOverride="KPI" />} />
-        <Route
-          path="/alerte-qualite"
-          element={
-            <GenericFePage pageKey="alerte-qualite" titleOverride="Alerte qualité" />
-          }
-        />
+        
         <Route
           path="/clinique-qualite"
           element={
             <GenericFePage pageKey="clinique-qualite" titleOverride="Clinique SUI" />
           }
         />
+        <Route path="/alerte-qualite" element={<AlerteQualitePage />} />
 
         {/* 404 */}
         <Route

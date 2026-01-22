@@ -4,12 +4,94 @@ import { pool } from "./db.js";
 import multer from "multer";
 import { importExcelToDb } from "./importExcel.js";
 import "dotenv/config";
+import path from "path";
+import fs from "fs";
+import ExcelJS from "exceljs";
+import { fileURLToPath } from "url";
+import { buildAlerteQualiteXlsx } from "./exports/alerteQualiteExport.js";
 
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 const upload = multer({ dest: "uploads/" });
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const TEMPLATE_ALERT_QUALITE = path.join(
+  __dirname,
+  "../templates/alerte-qualite-template.xlsx"
+);
+
+app.get("/exports/alerte-qualite/:id", async (req, res) => {
+  try {
+    const id = req.params.id;
+
+    // 1) récupérer la FE
+    const r = await pool.query(
+      `SELECT id, numero_fe, code_article, designation, code_lancement,
+              nom_fournisseur, type_nc, lieu_detection, date_creation, data
+       FROM fe_records
+       WHERE id = $1`,
+      [id]
+    );
+
+    const fe = r.rows[0];
+    if (!fe) return res.status(404).json({ ok: false, error: "FE introuvable" });
+
+    if (!fs.existsSync(TEMPLATE_ALERT_QUALITE)) {
+      return res.status(500).json({
+        ok: false,
+        error: `Template introuvable: ${TEMPLATE_ALERT_QUALITE}`,
+      });
+    }
+
+    // 2) charger template
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.readFile(TEMPLATE_ALERT_QUALITE);
+
+    // 3) choisir la feuille
+    // (adapte le nom si besoin)
+    const ws = wb.getWorksheet("ALERTE") || wb.worksheets[0];
+
+    // 4) remplir des cellules (exemples)
+    // 👉 Ici tu dois mapper vers les cellules EXACTES de ton template.
+    // Astuce: utilise des "cellules repères" fixes (ex: B4, C6...) ou des Named Ranges.
+    ws.getCell("C3").value = fe.numero_fe || "";               // Réf NC
+    ws.getCell("C4").value = (fe.data?.Client ?? fe.data?.client ?? "") || ""; // Client (selon ton excel)
+    ws.getCell("C5").value = fe.code_lancement || "";          // Lancement
+    ws.getCell("C6").value = fe.nom_fournisseur || "";         // Fournisseur
+    ws.getCell("C7").value = fe.code_article || "";            // Référence
+    ws.getCell("C8").value = fe.designation || "";             // Désignation
+    ws.getCell("C9").value = (fe.data?.["Quantité incriminée"] ?? "") || "";   // Qté incriminée (si existe)
+    ws.getCell("C10").value = fe.lieu_detection || "";         // Lieu de détection
+    ws.getCell("C11").value = fmtDateFR(fe.date_creation);     // Date de détection
+
+    ws.getCell("B13").value =
+      (fe.data?.["Description du défaut"] ??
+        fe.data?.Description ??
+        fe.data?.description ??
+        "") || "";
+
+    // 5) envoyer le fichier généré
+    const buffer = await wb.xlsx.writeBuffer();
+
+    const filename = `Alerte_Qualite_${fe.numero_fe || fe.id}.xlsx`;
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.send(Buffer.from(buffer));
+  } catch (e) {
+    console.error("EXPORT ALERTE QUALITE ERROR:", e);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+const EXCEL_PATH =
+  process.env.EXCEL_PATH || "C:/Users/Abdel/Desktop/Suivi FE V2.xlsm";
 
 /**
  * ✅ Dashboard Qualiticien
@@ -89,12 +171,40 @@ app.post("/fe/:id/close", async (req, res) => {
       WHERE id = $1
       RETURNING id, statut, data
       `,
-      [id]
+      [id],
     );
 
-    if (!r.rows[0]) return res.status(404).json({ ok: false, error: "Not found" });
+    if (!r.rows[0])
+      return res.status(404).json({ ok: false, error: "Not found" });
     res.json({ ok: true, item: r.rows[0] });
   } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+
+app.get("/exports/alerte-qualite/:id.xlsx", async (req, res) => {
+  try {
+    const id = req.params.id;
+
+    const r = await pool.query(`SELECT * FROM fe_records WHERE id = $1`, [id]);
+    const fe = r.rows[0];
+    if (!fe) return res.status(404).json({ ok: false, error: "Not found" });
+
+    const buf = await buildAlerteQualiteXlsx({ fe });
+
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="Alerte_Qualite_${fe.numero_fe || id}.xlsx"`
+    );
+
+    return res.end(Buffer.from(buf));
+  } catch (e) {
+    console.error("EXPORT ALERTE QUALITE ERROR:", e);
     res.status(500).json({ ok: false, error: e.message });
   }
 });
@@ -151,7 +261,8 @@ app.get("/manager/stats", async (req, res) => {
 
 app.post("/imports/excel", upload.single("file"), async (req, res) => {
   try {
-    if (!req.file) return res.status(400).json({ ok: false, error: "Fichier manquant" });
+    if (!req.file)
+      return res.status(400).json({ ok: false, error: "Fichier manquant" });
 
     const result = await importExcelToDb({
       filePath: req.file.path,
@@ -166,8 +277,22 @@ app.post("/imports/excel", upload.single("file"), async (req, res) => {
   }
 });
 
+app.post("/imports/excel/local", async (req, res) => {
+  try {
+    const result = await importExcelToDb({
+      filePath: EXCEL_PATH,
+      sheetName: "DATA", // adapte si besoin
+    });
+
+    res.json({ ok: true, ...result });
+  } catch (e) {
+    console.error("IMPORT LOCAL ERROR:", e);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
 app.get("/fe", async (req, res) => {
-    const annee = (req.query.annee ?? "").toString();
+  const annee = (req.query.annee ?? "").toString();
 
   try {
     const q = (req.query.q ?? "").toString();
@@ -178,7 +303,7 @@ app.get("/fe", async (req, res) => {
     const page = Math.max(parseInt(req.query.page ?? "1", 10) || 1, 1);
     const pageSize = Math.min(
       Math.max(parseInt(req.query.pageSize ?? "25", 10) || 25, 1),
-      100
+      100,
     );
     const offset = (page - 1) * pageSize;
 
@@ -209,21 +334,20 @@ app.get("/fe", async (req, res) => {
       i++;
     }
     if (annee) {
-  where.push(`annee = $${i++}`);
-  values.push(annee);
-}
-
+      where.push(`annee = $${i++}`);
+      values.push(annee);
+    }
 
     const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
 
     const totalR = await pool.query(
       `SELECT count(*)::int as total FROM fe_records ${whereSql}`,
-      values
+      values,
     );
     const total = totalR.rows[0]?.total ?? 0;
 
-const listR = await pool.query(
-  `SELECT
+    const listR = await pool.query(
+      `SELECT
      id, numero_fe, statut,
      code_article, designation, code_lancement,
      nom_fournisseur,
@@ -236,9 +360,8 @@ const listR = await pool.query(
    ${whereSql}
    ORDER BY imported_at DESC
    LIMIT $${i++} OFFSET $${i++}`,
-  [...values, pageSize, offset]
-);
-
+      [...values, pageSize, offset],
+    );
 
     res.json({ items: listR.rows, page, pageSize, total });
   } catch (e) {
@@ -273,7 +396,7 @@ app.get("/qualiticiens", async (req, res) => {
       WHERE ${where.join(" AND ")}
       ORDER BY name ASC
       `,
-      values
+      values,
     );
 
     res.json({ items: r.rows.map((x) => x.name) });
@@ -281,8 +404,6 @@ app.get("/qualiticiens", async (req, res) => {
     res.status(500).json({ ok: false, error: e.message });
   }
 });
-
-
 
 app.post("/fe/:id/assign", async (req, res) => {
   try {
@@ -295,10 +416,11 @@ app.post("/fe/:id/assign", async (req, res) => {
        SET assigned_to = $2, assigned_at = now()
        WHERE id = $1
        RETURNING id, assigned_to, assigned_at`,
-      [req.params.id, assigned_to]
+      [req.params.id, assigned_to],
     );
 
-    if (!r.rows[0]) return res.status(404).json({ ok: false, error: "Not found" });
+    if (!r.rows[0])
+      return res.status(404).json({ ok: false, error: "Not found" });
     res.json({ ok: true, item: r.rows[0] });
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message });
@@ -317,21 +439,21 @@ const cleanKey = (k) =>
 const FIELD_TO_COLUMN = {
   "N° FE": "numero_fe",
   "Numéro de FE": "numero_fe",
-  "Statut": "statut",
-  "REF": "code_article",
+  Statut: "statut",
+  REF: "code_article",
   "Code Article": "code_article",
-  "Désignation": "designation",
-  "Designation": "designation",
-  "Lancement": "code_lancement",
+  Désignation: "designation",
+  Designation: "designation",
+  Lancement: "code_lancement",
   "Code Lancement": "code_lancement",
   "Nom Fournisseur": "nom_fournisseur",
-  "Fournisseur": "nom_fournisseur",
-  "Animateur": "animateur",
-  "Semaine": "semaine",
-  "Année": "annee",
-  "année": "annee",
+  Fournisseur: "nom_fournisseur",
+  Animateur: "animateur",
+  Semaine: "semaine",
+  Année: "annee",
+  année: "annee",
   "Date de création": "date_creation",
-  "QUAND": "date_creation",
+  QUAND: "date_creation",
 };
 
 app.post("/fe/:id/field", async (req, res) => {
@@ -339,7 +461,8 @@ app.post("/fe/:id/field", async (req, res) => {
     const id = req.params.id;
     const { label, value } = req.body || {};
 
-    if (!label) return res.status(400).json({ ok: false, error: "label requis" });
+    if (!label)
+      return res.status(400).json({ ok: false, error: "label requis" });
 
     const key = cleanKey(label);
     const val = value === undefined || value === null ? "" : String(value);
@@ -360,10 +483,11 @@ app.post("/fe/:id/field", async (req, res) => {
         WHERE id = $1
         RETURNING id, data, ${column}
         `,
-        [id, `{${key}}`, val]
+        [id, `{${key}}`, val],
       );
 
-      if (!r.rows[0]) return res.status(404).json({ ok: false, error: "Not found" });
+      if (!r.rows[0])
+        return res.status(404).json({ ok: false, error: "Not found" });
       return res.json({ ok: true, item: r.rows[0] });
     } else {
       // seulement data
@@ -375,17 +499,17 @@ app.post("/fe/:id/field", async (req, res) => {
         WHERE id = $1
         RETURNING id, data
         `,
-        [id, `{${key}}`, val]
+        [id, `{${key}}`, val],
       );
 
-      if (!r.rows[0]) return res.status(404).json({ ok: false, error: "Not found" });
+      if (!r.rows[0])
+        return res.status(404).json({ ok: false, error: "Not found" });
       return res.json({ ok: true, item: r.rows[0] });
     }
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message });
   }
 });
-
 
 app.get("/portfolio", async (req, res) => {
   try {
@@ -395,7 +519,7 @@ app.get("/portfolio", async (req, res) => {
 
     const r = await pool.query(
       `SELECT client FROM qualiticien_clients WHERE qualiticien = $1 ORDER BY client ASC`,
-      [qualiticien]
+      [qualiticien],
     );
     res.json({ ok: true, items: r.rows.map((x) => x.client) });
   } catch (e) {
@@ -407,13 +531,15 @@ app.post("/portfolio/add", async (req, res) => {
   try {
     const { qualiticien, client } = req.body || {};
     if (!qualiticien || !client)
-      return res.status(400).json({ ok: false, error: "qualiticien + client requis" });
+      return res
+        .status(400)
+        .json({ ok: false, error: "qualiticien + client requis" });
 
     await pool.query(
       `INSERT INTO qualiticien_clients (qualiticien, client)
        VALUES ($1, $2)
        ON CONFLICT DO NOTHING`,
-      [qualiticien, client]
+      [qualiticien, client],
     );
 
     res.json({ ok: true });
@@ -426,11 +552,13 @@ app.post("/portfolio/remove", async (req, res) => {
   try {
     const { qualiticien, client } = req.body || {};
     if (!qualiticien || !client)
-      return res.status(400).json({ ok: false, error: "qualiticien + client requis" });
+      return res
+        .status(400)
+        .json({ ok: false, error: "qualiticien + client requis" });
 
     await pool.query(
       `DELETE FROM qualiticien_clients WHERE qualiticien = $1 AND client = $2`,
-      [qualiticien, client]
+      [qualiticien, client],
     );
 
     res.json({ ok: true });
@@ -444,7 +572,8 @@ app.get("/fe/:id", async (req, res) => {
     const r = await pool.query(`SELECT * FROM fe_records WHERE id = $1`, [
       req.params.id,
     ]);
-    if (!r.rows[0]) return res.status(404).json({ ok: false, error: "Not found" });
+    if (!r.rows[0])
+      return res.status(404).json({ ok: false, error: "Not found" });
     res.json(r.rows[0]);
   } catch (e) {
     console.error("DETAIL ERROR:", e);
@@ -472,7 +601,6 @@ app.get("/whoami", async (req, res) => {
   }
 });
 
-
 app.get("/db", async (req, res) => {
   try {
     const who = await pool.query(`
@@ -496,7 +624,9 @@ app.get("/db", async (req, res) => {
     // 2) Test explicite public.fe_records (évite problème de search_path)
     let stats = null;
     try {
-      const r = await pool.query(`SELECT now() as now, count(*)::int as total FROM public.fe_records`);
+      const r = await pool.query(
+        `SELECT now() as now, count(*)::int as total FROM public.fe_records`,
+      );
       stats = r.rows[0];
     } catch (e) {
       stats = { now: null, total: null, table_error: e.message };
@@ -514,6 +644,58 @@ app.get("/db", async (req, res) => {
   }
 });
 
+// ✅ Liste des numéros de FE (pour le menu déroulant)
+app.get("/fe/numeros", async (req, res) => {
+  try {
+    const annee = (req.query.annee ?? "").toString().trim();
+
+    const where = [];
+    const values = [];
+    let i = 1;
+
+    if (annee) {
+      where.push(`annee = $${i++}`);
+      values.push(annee);
+    }
+
+    const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
+
+    const r = await pool.query(
+      `
+  SELECT id, numero_fe
+  FROM fe_records
+  ${whereSql}
+  AND COALESCE(numero_fe,'') <> ''
+  ORDER BY numero_fe ASC
+  `.replace("WHERE AND", "WHERE"),
+      values,
+    );
+
+    res.json({ ok: true, items: r.rows });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// ✅ Récupérer une FE par numéro (plus simple pour "taper le N° FE")
+app.get("/fe/by-numero/:numero", async (req, res) => {
+  try {
+    const numero = (req.params.numero ?? "").toString().trim();
+    if (!numero)
+      return res.status(400).json({ ok: false, error: "numero requis" });
+
+    const r = await pool.query(
+      `SELECT * FROM fe_records WHERE numero_fe = $1 LIMIT 1`,
+      [numero],
+    );
+
+    if (!r.rows[0])
+      return res.status(404).json({ ok: false, error: "FE introuvable" });
+    res.json({ ok: true, item: r.rows[0] });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
 
 app.listen(3001, () => {
   console.log("API on http://localhost:3001");
