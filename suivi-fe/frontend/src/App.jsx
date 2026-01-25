@@ -6,6 +6,8 @@ import DashboardPage from "./pages/DashboardPage.jsx";
 import ManagerPage from "./pages/ManagerPage.jsx";
 import AlerteQualitePage from "./pages/AlerteQualitePage.jsx";
 import DerogationPage from "./pages/DerogationPage.jsx";
+import KpiPage from "./pages/KpiPage.jsx";
+import CliniqueQualitePage from "./pages/CliniqueQualitePage.jsx";
 
 export default function App() {
   return (
@@ -38,12 +40,12 @@ export default function App() {
           path="/derogation"
           element={<DerogationPage />}
         />
-        <Route path="/kpi" element={<GenericFePage pageKey="kpi" titleOverride="KPI" />} />
+        <Route path="/kpi" element={<KpiPage/>} />
         
         <Route
           path="/clinique-qualite"
           element={
-            <GenericFePage pageKey="clinique-qualite" titleOverride="Clinique SUI" />
+            <CliniqueQualitePage />
           }
         />
         <Route path="/alerte-qualite" element={<AlerteQualitePage />} />
