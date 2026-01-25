@@ -5,6 +5,7 @@ import GenericFePage from "./pages/GenericFePage.jsx";
 import DashboardPage from "./pages/DashboardPage.jsx";
 import ManagerPage from "./pages/ManagerPage.jsx";
 import AlerteQualitePage from "./pages/AlerteQualitePage.jsx";
+import DerogationPage from "./pages/DerogationPage.jsx";
 
 export default function App() {
   return (
@@ -35,7 +36,7 @@ export default function App() {
         />
         <Route
           path="/derogation"
-          element={<GenericFePage pageKey="derogation" titleOverride="Dérogation" />}
+          element={<DerogationPage />}
         />
         <Route path="/kpi" element={<GenericFePage pageKey="kpi" titleOverride="KPI" />} />
         

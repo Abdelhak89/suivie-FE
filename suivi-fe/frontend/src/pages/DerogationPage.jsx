@@ -1,50 +1,16 @@
-// src/pages/AlerteQualitePage.jsx
-import { useEffect, useMemo, useRef, useState } from "react";
+// src/pages/DerogationPage.jsx
+import { useEffect, useMemo, useState } from "react";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
-function getDescFromFe(fe) {
-  const data = fe?.data;
-  if (!data || typeof data !== "object") return "";
-  return (
-    data["Details de l'anomalie"] ||
-    data["Détails de l'anomalie"] ||
-    data["Detail de l'anomalie"] ||
-    data["Détail de l'anomalie"] ||
-    ""
-  );
-}
-
-function toIsoShort(v) {
-  if (!v) return "";
-  const s = String(v).trim();
-  // si déjà ISO
-  const iso = s.slice(0, 10);
-  if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) return iso;
-
-  // fallback Date()
-  const d = new Date(s);
-  if (!isNaN(d.getTime())) {
-    const yyyy = d.getFullYear();
-    const mm = String(d.getMonth() + 1).padStart(2, "0");
-    const dd = String(d.getDate()).padStart(2, "0");
-    return `${yyyy}-${mm}-${dd}`;
-  }
-  return s;
-}
-
-export default function AlerteQualitePage() {
+export default function DerogationPage() {
   const [annee, setAnnee] = useState("2026");
   const [q, setQ] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const [items, setItems] = useState([]); // {id, numero_fe, ...}
+  const [items, setItems] = useState([]);
   const [selectedId, setSelectedId] = useState("");
   const [selectedFe, setSelectedFe] = useState(null);
-
-  // image upload UI
-  const fileRef = useRef(null);
-  const [imgStatus, setImgStatus] = useState(""); // "ok" / "..." / "error"
 
   useEffect(() => {
     const ctrl = new AbortController();
@@ -68,7 +34,11 @@ export default function AlerteQualitePage() {
   const options = useMemo(() => {
     return (items || [])
       .filter((x) => x?.numero_fe)
-      .map((x) => ({ id: x.id, numero_fe: x.numero_fe }));
+      .map((x) => ({
+        id: x.id,
+        numero_fe: x.numero_fe,
+        desc: (x?.data && (x.data["Details de l'anomalie"] || x.data["Détails de l'anomalie"])) || "",
+      }));
   }, [items]);
 
   const loadFe = async (id) => {
@@ -85,66 +55,24 @@ export default function AlerteQualitePage() {
 
   const onSelectChange = (val) => {
     setSelectedId(val);
-    setImgStatus("");
     loadFe(val);
   };
 
   const openXlsx = () => {
     if (!selectedId) return;
-    window.open(`${API}/exports/alerte-qualite/${selectedId}.xlsx`, "_blank");
+    window.open(`${API}/exports/derogation/${selectedId}.xlsx`, "_blank");
   };
-
-  const onPickImage = () => {
-    if (!selectedId) return;
-    fileRef.current?.click();
-  };
-
-  const uploadImage = async (file) => {
-    if (!selectedId || !file) return;
-
-    setImgStatus("upload...");
-    try {
-      const fd = new FormData();
-      fd.append("image", file);
-
-      const r = await fetch(`${API}/exports/alerte-qualite/${selectedId}/image`, {
-        method: "POST",
-        body: fd,
-      });
-      const d = await r.json();
-
-      if (!d?.ok) {
-        setImgStatus("error");
-        alert(d?.error || "Erreur upload image");
-        return;
-      }
-
-      setImgStatus("ok");
-    } catch (e) {
-      console.error(e);
-      setImgStatus("error");
-      alert("Erreur upload image");
-    }
-  };
-
-  const descPreview = selectedFe?.loading || selectedFe?.error ? "" : getDescFromFe(selectedFe);
 
   return (
     <div style={{ padding: 16 }}>
       <div style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
-        <h2 style={{ margin: 0 }}>Alerte qualité</h2>
-        <span style={{ color: "#6b7280" }}>{loading ? "chargement..." : `${options.length} FE`}</span>
+        <h2 style={{ margin: 0 }}>Dérogation</h2>
+        <span style={{ color: "#6b7280" }}>
+          {loading ? "chargement..." : `${options.length} FE`}
+        </span>
       </div>
 
-      <div
-        style={{
-          marginTop: 12,
-          display: "flex",
-          gap: 12,
-          alignItems: "center",
-          flexWrap: "wrap",
-        }}
-      >
+      <div style={{ marginTop: 12, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
         <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <span style={{ color: "#6b7280", fontSize: 13 }}>Année :</span>
           <select value={annee} onChange={(e) => setAnnee(e.target.value)} style={selectStyle}>
@@ -166,34 +94,10 @@ export default function AlerteQualitePage() {
           <option value="">— Choisir une FE —</option>
           {options.map((o) => (
             <option key={o.id} value={o.id}>
-              {o.numero_fe}
+              {o.numero_fe}{o.desc ? ` — ${o.desc.slice(0, 40)}${o.desc.length > 40 ? "…" : ""}` : ""}
             </option>
           ))}
         </select>
-
-        {/* ✅ Bouton image */}
-        <input
-          ref={fileRef}
-          type="file"
-          accept="image/*"
-          style={{ display: "none" }}
-          onChange={(e) => uploadImage(e.target.files?.[0])}
-        />
-
-        <button
-          onClick={onPickImage}
-          disabled={!selectedId}
-          style={{
-            ...btnStyle,
-            borderColor: "#2563eb",
-            background: selectedId ? "#2563eb" : "#e5e7eb",
-            color: selectedId ? "white" : "#6b7280",
-          }}
-          title="Uploader une image qui sera intégrée dans le XLSX"
-        >
-          Ajouter image
-          {imgStatus === "upload..." ? "…" : imgStatus === "ok" ? " ✅" : imgStatus === "error" ? " ❌" : ""}
-        </button>
 
         <button
           onClick={openXlsx}
@@ -222,12 +126,7 @@ export default function AlerteQualitePage() {
             <div style={{ fontWeight: 700 }}>REF</div><div>{selectedFe?.code_article || "—"}</div>
             <div style={{ fontWeight: 700 }}>Désignation</div><div>{selectedFe?.designation || "—"}</div>
             <div style={{ fontWeight: 700 }}>Lancement</div><div>{selectedFe?.code_lancement || "—"}</div>
-            <div style={{ fontWeight: 700 }}>Date</div><div>{toIsoShort(selectedFe?.date_creation || "") || "—"}</div>
-            <div style={{ fontWeight: 700 }}>Lieu détection</div><div>{selectedFe?.lieu_detection || "—"}</div>
-
-            {/* ✅ Description */}
-            <div style={{ fontWeight: 700 }}>Description</div>
-            <div style={{ whiteSpace: "pre-wrap" }}>{descPreview || "—"}</div>
+            <div style={{ fontWeight: 700 }}>Date (ISO)</div><div>{selectedFe?.date_creation || "—"}</div>
           </div>
         )}
       </div>
@@ -260,5 +159,5 @@ const selectStyle = {
 
 const selectStyleWide = {
   ...selectStyle,
-  minWidth: 220,
+  minWidth: 260,
 };
