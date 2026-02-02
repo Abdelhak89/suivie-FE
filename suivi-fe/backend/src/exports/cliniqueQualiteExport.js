@@ -1,161 +1,130 @@
 // backend/src/exports/cliniqueQualiteExport.js
 import PptxGenJS from "pptxgenjs";
+import fs from "fs";
 import path from "path";
 import { getClientNameFromCode } from "../data/clients.js";
 
-const cleanKey = (k) =>
-  String(k || "")
-    .trim()
-    .replace(/\s+/g, " ")
-    .replace(/\//g, "_")
-    .replace(/[.]/g, "")
-    .replace(/[%]/g, "pct");
-
-function getDataByKeys(fe, ...keys) {
-  const data = fe?.data;
-  if (!data || typeof data !== "object") return "";
-
-  const wanted = new Set(keys.map(cleanKey));
-  for (const [k, v] of Object.entries(data)) {
-    if (wanted.has(cleanKey(k))) {
-      if (v !== null && v !== undefined && String(v).trim() !== "")
-        return String(v);
-    }
-  }
-  return "";
+function getClientFromRef(ref) {
+  const s = String(ref || "").trim();
+  const code = s.slice(0, 3);
+  return getClientNameFromCode(code) || code || "";
 }
 
 function toISODate(v) {
   if (!v) return "";
-  const s = String(v).trim();
-  const iso = s.slice(0, 10);
-  if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) return iso;
-
-  const d = new Date(s);
-  if (!isNaN(d.getTime())) {
-    const yyyy = d.getFullYear();
-    const mm = String(d.getMonth() + 1).padStart(2, "0");
-    const dd = String(d.getDate()).padStart(2, "0");
-    return `${yyyy}-${mm}-${dd}`;
-  }
-  return "";
+  const s = String(v).slice(0, 10);
+  // si déjà YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const d = new Date(v);
+  if (isNaN(d.getTime())) return "";
+  return d.toISOString().slice(0, 10);
 }
 
-function clientFromRef(ref) {
-  const code = String(ref || "").trim().slice(0, 3);
-  const name = getClientNameFromCode(code);
-  return { code, name };
+function getDescriptionFE(fe) {
+  const d =
+    fe?.data?.["Détails de l'anomalie"] ??
+    fe?.data?.["Details de l'anomalie"] ??
+    fe?.data?.["Detail de l'anomalie"] ??
+    fe?.data?.["Description"] ??
+    fe?.designation ??
+    "";
+  return String(d || "").trim();
 }
 
 /**
- * Génère le PPTX Clinique Qualité (A3 DMAIC)
- * On garde la mise en forme via une image de fond du slide.
+ * Génère un PPTX 1 slide en gardant le design via une image de fond.
+ * @param {object} args
+ * @param {object} args.fe
+ * @param {string} args.slide1PngAbs   chemin ABS vers l'image de fond de la slide 1
+ * @param {string} [args.qualiticien]
+ * @param {string} [args.participants]  multi-lignes OK
  */
-export async function buildCliniqueQualitePptx({
-  fe,
-  backgroundPngAbs,
-  qualiticien = "",
-  participants = "",
-}) {
+export async function buildCliniqueQualitePpt({ fe, slide1PngAbs, qualiticien = "", participants = "" }) {
+  if (!slide1PngAbs || !fs.existsSync(slide1PngAbs)) {
+    throw new Error(`Slide background PNG not found: ${slide1PngAbs}`);
+  }
+
   const pptx = new PptxGenJS();
-  pptx.layout = "LAYOUT_WIDE"; // 13.33 x 7.5
+  pptx.layout = "LAYOUT_WIDE"; // 13.333 x 7.5
 
   const slide = pptx.addSlide();
 
-  // Fond = ton slide exporté en PNG
-  slide.addImage({ path: backgroundPngAbs, x: 0, y: 0, w: 13.33, h: 7.5 });
+  // 1) Background (mise en forme identique)
+  slide.addImage({ path: slide1PngAbs, x: 0, y: 0, w: 13.333, h: 7.5 });
 
-  // Données FE
-  const numeroFe = fe?.numero_fe || "";
-  const dateISO = toISODate(fe?.date_creation || "");
-  const ref = fe?.code_article || "";
-  const { name: clientName, code: clientCode } = clientFromRef(ref);
+  // 2) Datas FE
+  const client = getClientFromRef(fe?.code_article);
+  const dateFe = toISODate(fe?.date_creation);
+  const numeroFe = String(fe?.numero_fe || "").trim();
+  const description = getDescriptionFE(fe);
 
-  const descriptionFE =
-    getDataByKeys(
-      fe,
-      "Details de l'anomalie",
-      "Détails de l'anomalie",
-      "Detail de l'anomalie",
-      "Détail de l'anomalie",
-      "Description",
-      "Description du défaut"
-    ) || fe?.designation || "";
+  // 3) === POSITIONS (à ajuster 1 fois si besoin) ===
+  // Astuce: on ajuste ensuite au pixel près.
+  // Unités = pouces (inch) en layout wide
+  const POS = {
+    FE_DATE:        { x: 1.05, y: 0.58, w: 2.2,  h: 0.35 },
+    FE_NUMERO:      { x: 1.05, y: 0.95, w: 2.2,  h: 0.35 },
+    CLIENT:         { x: 3.55, y: 0.58, w: 5.4,  h: 0.35 },
 
-  // ⚙️ Positions (à ajuster une fois si besoin)
-  // Astuce: tu ajustes x/y/w/h à la main jusqu’à ce que ça tombe pile.
+    QUALITICIEN:    { x: 9.35, y: 0.58, w: 3.7,  h: 0.35 },
+    PARTICIPANTS:   { x: 9.35, y: 0.95, w: 3.7,  h: 0.95 },
+
+    DESCRIPTION_FE: { x: 1.05, y: 1.55, w: 12.0, h: 0.90 }, // zone description
+  };
+
   const common = {
     fontFace: "Calibri",
     color: "000000",
   };
 
-  // Date FE (zone en haut)
-  slide.addText(dateISO, {
+  // 4) Ajout textes (par-dessus l'image)
+  slide.addText(dateFe || "", {
+    ...POS.FE_DATE,
     ...common,
-    x: 9.9,
-    y: 0.45,
-    w: 3.0,
-    h: 0.35,
-    fontSize: 14,
-    bold: true,
-    align: "right",
-  });
-
-  // Numéro FE
-  slide.addText(numeroFe, {
-    ...common,
-    x: 1.05,
-    y: 0.45,
-    w: 3.6,
-    h: 0.35,
-    fontSize: 14,
-    bold: true,
-  });
-
-  // Client
-  slide.addText(clientName || clientCode || "", {
-    ...common,
-    x: 4.9,
-    y: 0.45,
-    w: 4.8,
-    h: 0.35,
-    fontSize: 14,
-    bold: true,
-    align: "center",
-  });
-
-  // Qualiticien
-  slide.addText(String(qualiticien || ""), {
-    ...common,
-    x: 1.05,
-    y: 1.08,
-    w: 5.7,
-    h: 0.5,
-    fontSize: 13,
-  });
-
-  // Participants (multiligne)
-  slide.addText(String(participants || ""), {
-    ...common,
-    x: 6.9,
-    y: 1.08,
-    w: 6.0,
-    h: 0.9,
     fontSize: 12,
+    bold: true,
     valign: "top",
   });
 
-  // Description FE (zone que tu as pointée)
-  slide.addText(String(descriptionFE || ""), {
+  slide.addText(numeroFe || "", {
+    ...POS.FE_NUMERO,
     ...common,
-    x: 1.05,
-    y: 2.05,
-    w: 11.85,
-    h: 1.1,
     fontSize: 12,
+    bold: true,
     valign: "top",
   });
 
-  const buf = await pptx.write("nodebuffer");
-  return buf;
+  slide.addText(client || "", {
+    ...POS.CLIENT,
+    ...common,
+    fontSize: 12,
+    bold: true,
+    valign: "top",
+  });
+
+  slide.addText(String(qualiticien || fe?.animateur || "").trim(), {
+    ...POS.QUALITICIEN,
+    ...common,
+    fontSize: 12,
+    bold: true,
+    valign: "top",
+  });
+
+  slide.addText(String(participants || "").trim(), {
+    ...POS.PARTICIPANTS,
+    ...common,
+    fontSize: 10,
+    valign: "top",
+  });
+
+  slide.addText(description, {
+    ...POS.DESCRIPTION_FE,
+    ...common,
+    fontSize: 10,
+    valign: "top",
+    // wrap automatique dans la box
+  });
+
+  // buffer node
+  return await pptx.write("nodebuffer");
 }

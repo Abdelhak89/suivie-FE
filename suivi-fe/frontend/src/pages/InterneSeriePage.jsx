@@ -1,6 +1,7 @@
 import { useState } from "react";
 import FeGrid from "../components/FeGrid.jsx";
 import { PAGES } from "../config/fePages.js";
+import "../styles/app.css";
 
 export default function InterneSeriePage() {
   const config = PAGES["interne-serie"];
@@ -15,28 +16,31 @@ export default function InterneSeriePage() {
   };
 
   return (
-    <div>
-      <h2 style={{ margin: 0 }}>{config.title}</h2>
-      <div style={{ color: "#666", margin: "6px 0 14px" }}>
-        Tableau à remplir par FE (V1 front-only)
+    <div className="container">
+      <div className="pageHead">
+        <div>
+          <h2 className="h1">{config.title}</h2>
+          <div className="sub">Tableau à remplir par FE (V1 front-only)</div>
+        </div>
+
+        <span className="badge badgeBlue">Interne Série</span>
       </div>
 
-      <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-        <button
-          onClick={() => setRows((r) => [...r, {}])}
-          style={{ padding: "8px 12px", borderRadius: 10, border: "1px solid #ddd", background: "white" }}
-        >
-          + Ajouter une ligne
-        </button>
-        <button
-          onClick={() => setRows([{}])}
-          style={{ padding: "8px 12px", borderRadius: 10, border: "1px solid #ddd", background: "white" }}
-        >
-          Reset
-        </button>
-      </div>
+      <div className="panel">
+        <div className="toolbar">
+          <button className="btn btnPrimary" onClick={() => setRows((r) => [...r, {}])}>
+            + Ajouter une ligne
+          </button>
 
-      <FeGrid config={config} rows={rows} onChange={onChange} />
+          <button className="btn" onClick={() => setRows([{}])}>
+            Reset
+          </button>
+        </div>
+
+        <div style={{ marginTop: 12 }}>
+          <FeGrid config={config} rows={rows} onChange={onChange} />
+        </div>
+      </div>
     </div>
   );
 }

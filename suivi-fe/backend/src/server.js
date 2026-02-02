@@ -13,7 +13,9 @@ import { pool } from "./db.js";
 import { importExcelToDb } from "./importExcel.js";
 import { buildAlerteQualiteXlsx } from "./exports/alerteQualiteExport.js";
 import { buildA3DmaicPptx } from "./exports/a3DmaicExport.js";
-import { buildCliniqueQualitePptx } from "./exports/cliniqueQualiteExport.js";
+import { spawn } from "child_process";
+import os from "os";
+
 
 const app = express();
 app.use(cors());
@@ -21,6 +23,20 @@ app.use(express.json());
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+const CLINIQUE_DIR = path.join(__dirname, "../uploads/clinique_pptx");
+fs.mkdirSync(CLINIQUE_DIR, { recursive: true });
+
+const cliniqueStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, CLINIQUE_DIR),
+  filename: (req, file, cb) => {
+    const safeId = String(req.params.id || "unknown").replace(/[^a-zA-Z0-9_-]/g, "");
+    const ts = Date.now();
+    cb(null, `Clinique_Qualite_${safeId}_${ts}.pptx`);
+  },
+});
+const uploadCliniquePptx = multer({ storage: cliniqueStorage });
+
 
 // =====================
 // Config chemins
@@ -175,9 +191,10 @@ app.post("/imports/excel/local", async (req, res) => {
   }
 });
 
-// liste FE
+// ✅ liste FE (avec filtre clientCodes = "313,716,..." basé sur 3 premiers chars de REF)
 app.get("/fe", async (req, res) => {
-  const annee = (req.query.annee ?? "").toString();
+  const annee = (req.query.annee ?? "").toString().trim();
+  const clientCodesRaw = (req.query.clientCodes ?? "").toString().trim();
 
   try {
     const q = (req.query.q ?? "").toString();
@@ -219,10 +236,29 @@ app.get("/fe", async (req, res) => {
       where.push(`annee = $${i++}`);
       values.push(annee);
     }
+    
+
+    // ✅ filtre par codes client (3 premiers chars de REF)
+    // ex: clientCodes=313,716
+    if (clientCodesRaw) {
+      const codes = clientCodesRaw
+        .split(/[,;|\s]+/g)
+        .map((x) => x.trim())
+        .filter(Boolean)
+        .map((x) => x.slice(0, 3)); // sécurité
+
+      if (codes.length) {
+        where.push(`LEFT(COALESCE(code_article,''), 3) = ANY($${i++}::text[])`);
+        values.push(codes);
+      }
+    }
 
     const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
 
-    const totalR = await pool.query(`SELECT count(*)::int as total FROM fe_records ${whereSql}`, values);
+    const totalR = await pool.query(
+      `SELECT count(*)::int as total FROM fe_records ${whereSql}`,
+      values
+    );
     const total = totalR.rows[0]?.total ?? 0;
 
     const listR = await pool.query(
@@ -248,6 +284,8 @@ app.get("/fe", async (req, res) => {
     res.status(500).json({ ok: false, error: e.message });
   }
 });
+
+
 
 // détail
 app.get("/fe/:id", async (req, res) => {
@@ -673,37 +711,240 @@ app.get("/exports/a3-dmaic/:id.pptx", async (req, res) => {
 
 app.get("/exports/clinique-qualite/:id.pptx", async (req, res) => {
   try {
-    const id = req.params.id;
+    const { id } = req.params;
 
-    const r = await pool.query(`SELECT * FROM fe_records WHERE id = $1`, [id]);
+    const r = await pool.query("SELECT * FROM fe_records WHERE id = $1", [id]);
     const fe = r.rows[0];
     if (!fe) return res.status(404).json({ ok: false, error: "Not found" });
 
-    // Tu mets ton image de fond ici (copiée dans backend/templates/)
-    const backgroundPngAbs = path.join(__dirname, "../templates/A3_DMAIC-rev3-slide1.png");
+    const templatePathAbs = path.join(
+      __dirname,
+      "../templates/A3_DMAIC-rev3_template_placeholders.pptx"
+    );
 
-    const qualiticien = (req.query.qualiticien || "").toString();
-    const participants = (req.query.participants || "").toString();
+    // -------- helpers (local à la route) ----------
+    const cleanKey = (k) =>
+      String(k || "")
+        .trim()
+        .replace(/\s+/g, " ")
+        .replace(/\//g, "_")
+        .replace(/[.]/g, "")
+        .replace(/[%]/g, "pct");
 
-    const buf = await buildCliniqueQualitePptx({
-      fe,
-      backgroundPngAbs,
-      qualiticien,
-      participants,
+    function getDataByKeys(row, ...keys) {
+      const data = row?.data;
+      if (!data || typeof data !== "object") return "";
+      const wanted = new Set(keys.map(cleanKey));
+      for (const [k, v] of Object.entries(data)) {
+        if (wanted.has(cleanKey(k))) {
+          if (v !== null && v !== undefined && String(v).trim() !== "") return String(v);
+        }
+      }
+      return "";
+    }
+
+    function toISODate(v) {
+      if (!v) return "";
+      const s = String(v).trim();
+      const iso = s.slice(0, 10);
+      if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) return iso;
+
+      const d = new Date(s);
+      if (!isNaN(d.getTime())) return d.toISOString().slice(0, 10);
+      return "";
+    }
+
+    // -------- mapping client depuis REF ----------
+    const ref = String(fe.code_article || "").trim();
+    const clientCode = ref.slice(0, 3);
+    const clientName = getClientNameFromCode(clientCode) || clientCode || "";
+
+    // -------- champs FE ----------
+    const feDate = toISODate(fe?.date_creation || "");
+    const numeroFe = fe?.numero_fe || "";
+
+    const description =
+      getDataByKeys(fe, "Détails de l'anomalie", "Details de l'anomalie", "Description") ||
+      fe?.designation ||
+      "";
+
+    const qteEstimee =
+      getDataByKeys(fe, "Qte estimee", "Qte estimée", "Qté estimée", "Quantité estimée", "Qte NC", "Qté NC") || "";
+
+    const detecteePar =
+      getDataByKeys(fe, "Detectee par", "Détectée par", "Detectée Par", "Détectée Par") || "";
+
+    const ilot = String(fe?.ilot_generateur || "").trim() || "";
+
+    const recurrence =
+      getDataByKeys(fe, "Récurrence", "Recurrence", "Reccurence") || "";
+
+    // Quoi & Combien = Code Article + Qte estimée
+    const quoiCombien = [ref, qteEstimee ? `Qté estimée: ${qteEstimee}` : ""].filter(Boolean).join(" \n");
+
+    // Quand = créée le (date FE)
+    const quand = feDate;
+
+    // -------- mapping placeholders ----------
+    const mapping = {
+      "{{FE_DATE}}": feDate,
+      "{{FE_NUMERO}}": numeroFe,
+      "{{CLIENT}}": clientName,
+      "{{DESCRIPTION_FE}}": description,
+
+      "{{QUALITICIEN}}": (req.query.qualiticien || fe?.animateur || "").toString(),
+      "{{PARTICIPANTS}}": (req.query.participants || "").toString(),
+
+      // ✅ nouveaux placeholders
+      "{{QUOI_COMBIEN}}": quoiCombien,
+      "{{QUI}}": detecteePar,
+      "{{OU}}": ilot,
+      "{{QUAND}}": quand,
+      "{{RECURRENCE}}": recurrence,
+    };
+
+    // fichiers temporaires
+    const tmpDir = os.tmpdir();
+    const payloadPath = path.join(tmpDir, `clinique_payload_${id}.json`);
+    const outPath = path.join(tmpDir, `Clinique_Qualite_${id}.pptx`);
+
+    fs.writeFileSync(payloadPath, JSON.stringify({ mapping }, null, 2), "utf-8");
+
+    const pyScript = path.join(__dirname, "./scripts/fill_clinique_qualite.py");
+
+    // Windows: si "python" ne marche pas chez toi, remplace par "py"
+    const py = spawn("python", [pyScript, templatePathAbs, payloadPath, outPath], {
+      stdio: "pipe",
     });
 
-    const fileName = `Clinique_Qualite_${fe.numero_fe || id}.pptx`;
-    res.setHeader(
-      "Content-Type",
-      "application/vnd.openxmlformats-officedocument.presentationml.presentation"
-    );
-    res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
-    return res.end(Buffer.from(buf));
+    let err = "";
+    py.stderr.on("data", (d) => (err += d.toString()));
+
+    py.on("close", (code) => {
+      if (code !== 0) {
+        console.error("PY PPT ERROR:", err);
+        return res.status(500).json({ ok: false, error: err || "Python failed" });
+      }
+
+      const fileName = `Clinique_Qualite_${fe.numero_fe || id}.pptx`;
+      res.setHeader(
+        "Content-Type",
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+      );
+      res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+
+      const buf = fs.readFileSync(outPath);
+      return res.end(buf);
+    });
   } catch (e) {
     console.error("EXPORT CLINIQUE QUALITE ERROR:", e);
     res.status(500).json({ ok: false, error: e.message });
   }
 });
+
+
+app.post("/clinique-qualite/:id/upload", uploadCliniquePptx.single("pptx"), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ ok: false, error: "pptx manquant" });
+
+    const participants = JSON.parse((req.body.participants_json || "[]").toString());
+    const recipients = (participants || [])
+      .map(p => (p?.email || "").toString().trim())
+      .filter(Boolean);
+
+    return res.json({
+      ok: true,
+      file: req.file.filename,
+      storedAt: req.file.path,
+      recipients,
+      note: "V1: stockage OK. L'envoi mail sera branché ensuite (SMTP/O365).",
+    });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// =====================
+// MANAGER - Assignation FE
+// =====================
+
+// FE non assignées (animateur vide)
+app.get("/manager/fe-unassigned", async (req, res) => {
+  try {
+    const annee = (req.query.annee ?? "").toString().trim();
+    const q = (req.query.q ?? "").toString().trim();
+
+    const where = [`(animateur IS NULL OR BTRIM(animateur) = '')`];
+    const values = [];
+    let i = 1;
+
+    if (annee) {
+      where.push(`annee = $${i++}`);
+      values.push(annee);
+    }
+
+    if (q) {
+      where.push(`(
+        COALESCE(numero_fe,'') ILIKE $${i} OR
+        COALESCE(code_article,'') ILIKE $${i} OR
+        COALESCE(designation,'') ILIKE $${i} OR
+        COALESCE(code_lancement,'') ILIKE $${i}
+      )`);
+      values.push(`%${q}%`);
+      i++;
+    }
+
+    const whereSql = `WHERE ${where.join(" AND ")}`;
+
+    const r = await pool.query(
+      `
+      SELECT
+        id, numero_fe, statut,
+        code_article, designation, code_lancement,
+        nom_fournisseur, animateur,
+        date_creation, annee, semaine,
+        imported_at
+      FROM fe_records
+      ${whereSql}
+      ORDER BY imported_at DESC
+      LIMIT 300
+      `,
+      values
+    );
+
+    res.json({ ok: true, items: r.rows });
+  } catch (e) {
+    console.error("MANAGER UNASSIGNED ERROR:", e);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// Assigner UNE FE à un qualiticien (update animateur)
+app.post("/manager/assign-fe", async (req, res) => {
+  try {
+    const feId = (req.body?.feId ?? "").toString().trim();
+    const animateur = (req.body?.animateur ?? "").toString().trim();
+
+    if (!feId) return res.status(400).json({ ok: false, error: "feId manquant" });
+    if (!animateur) return res.status(400).json({ ok: false, error: "animateur manquant" });
+
+    const r = await pool.query(
+      `UPDATE fe_records
+       SET animateur = $2
+       WHERE id = $1
+       RETURNING id, numero_fe, animateur`,
+      [feId, animateur]
+    );
+
+    if (!r.rows[0]) return res.status(404).json({ ok: false, error: "FE introuvable" });
+
+    res.json({ ok: true, item: r.rows[0] });
+  } catch (e) {
+    console.error("MANAGER ASSIGN ERROR:", e);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
 
 
 app.listen(3001, () => {

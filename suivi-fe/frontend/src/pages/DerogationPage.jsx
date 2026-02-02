@@ -1,5 +1,5 @@
-// src/pages/DerogationPage.jsx
 import { useEffect, useMemo, useState } from "react";
+import "../styles/app.css";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
@@ -23,9 +23,7 @@ export default function DerogationPage() {
     fetch(`${API}/fe?${params.toString()}`, { signal: ctrl.signal })
       .then((r) => r.json())
       .then((d) => setItems(d.items || []))
-      .catch((e) => {
-        if (e?.name !== "AbortError") console.error(e);
-      })
+      .catch(() => {})
       .finally(() => setLoading(false));
 
     return () => ctrl.abort();
@@ -64,100 +62,71 @@ export default function DerogationPage() {
   };
 
   return (
-    <div style={{ padding: 16 }}>
-      <div style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
-        <h2 style={{ margin: 0 }}>Dérogation</h2>
-        <span style={{ color: "#6b7280" }}>
-          {loading ? "chargement..." : `${options.length} FE`}
-        </span>
+    <div className="container">
+      <div className="pageHead">
+        <div>
+          <h2 className="h1">Dérogation</h2>
+          <div className="sub">{loading ? "Chargement…" : `${options.length} FE`}</div>
+        </div>
+        <span className="badge badgeBlue">Export XLSX</span>
       </div>
 
-      <div style={{ marginTop: 12, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-        <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <span style={{ color: "#6b7280", fontSize: 13 }}>Année :</span>
-          <select value={annee} onChange={(e) => setAnnee(e.target.value)} style={selectStyle}>
-            <option value="2026">2026</option>
-            <option value="2025">2025</option>
-            <option value="2024">2024</option>
-            <option value="">Toutes</option>
+      <div className="panel">
+        <div className="toolbar">
+          <div className="field">
+            <span className="label">Année</span>
+            <select className="select" value={annee} onChange={(e) => setAnnee(e.target.value)}>
+              <option value="2026">2026</option>
+              <option value="2025">2025</option>
+              <option value="2024">2024</option>
+              <option value="">Toutes</option>
+            </select>
+          </div>
+
+          <input
+            className="input"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Rechercher (N° FE / REF / désignation / lancement...)"
+            style={{ minWidth: 320 }}
+          />
+
+          <select className="selectWide" value={selectedId} onChange={(e) => onSelectChange(e.target.value)}>
+            <option value="">— Choisir une FE —</option>
+            {options.map((o) => (
+              <option key={o.id} value={o.id}>
+                {o.numero_fe}{o.desc ? ` — ${o.desc.slice(0, 40)}${o.desc.length > 40 ? "…" : ""}` : ""}
+              </option>
+            ))}
           </select>
-        </label>
 
-        <input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Rechercher (N° FE / REF / désignation / lancement...)"
-          style={inputStyle}
-        />
-
-        <select value={selectedId} onChange={(e) => onSelectChange(e.target.value)} style={selectStyleWide}>
-          <option value="">— Choisir une FE —</option>
-          {options.map((o) => (
-            <option key={o.id} value={o.id}>
-              {o.numero_fe}{o.desc ? ` — ${o.desc.slice(0, 40)}${o.desc.length > 40 ? "…" : ""}` : ""}
-            </option>
-          ))}
-        </select>
-
-        <button
-          onClick={openXlsx}
-          disabled={!selectedId}
-          style={{
-            ...btnStyle,
-            background: selectedId ? "#111827" : "#e5e7eb",
-            color: selectedId ? "white" : "#6b7280",
-            borderColor: selectedId ? "#111827" : "#e5e7eb",
-          }}
-        >
-          Générer .xlsx
-        </button>
+          <button className="btn btnDark" onClick={openXlsx} disabled={!selectedId}>
+            Générer .xlsx
+          </button>
+        </div>
       </div>
 
-      <div style={{ marginTop: 16, border: "1px solid #e5e7eb", borderRadius: 12, padding: 14, background: "white" }}>
+      <div className="panel" style={{ marginTop: 12 }}>
         {!selectedId ? (
-          <div style={{ color: "#6b7280" }}>Choisis une FE pour afficher l’aperçu.</div>
+          <div className="sub">Choisis une FE pour afficher l’aperçu.</div>
         ) : selectedFe?.loading ? (
-          <div style={{ color: "#6b7280" }}>Chargement FE…</div>
+          <div className="sub">Chargement FE…</div>
         ) : selectedFe?.error ? (
-          <div style={{ color: "#b91c1c" }}>{selectedFe.error}</div>
+          <div className="sub" style={{ color: "#b91c1c" }}>{selectedFe.error}</div>
         ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "160px 1fr", gap: 10 }}>
-            <div style={{ fontWeight: 700 }}>N° FE</div><div>{selectedFe?.numero_fe || "—"}</div>
-            <div style={{ fontWeight: 700 }}>REF</div><div>{selectedFe?.code_article || "—"}</div>
-            <div style={{ fontWeight: 700 }}>Désignation</div><div>{selectedFe?.designation || "—"}</div>
-            <div style={{ fontWeight: 700 }}>Lancement</div><div>{selectedFe?.code_lancement || "—"}</div>
-            <div style={{ fontWeight: 700 }}>Date (ISO)</div><div>{selectedFe?.date_creation || "—"}</div>
+          <div className="tableWrap">
+            <table className="table">
+              <tbody>
+                <tr><td className="th">N° FE</td><td className="td">{selectedFe?.numero_fe || "—"}</td></tr>
+                <tr><td className="th">REF</td><td className="td">{selectedFe?.code_article || "—"}</td></tr>
+                <tr><td className="th">Désignation</td><td className="td">{selectedFe?.designation || "—"}</td></tr>
+                <tr><td className="th">Lancement</td><td className="td">{selectedFe?.code_lancement || "—"}</td></tr>
+                <tr><td className="th">Date (ISO)</td><td className="td">{selectedFe?.date_creation || "—"}</td></tr>
+              </tbody>
+            </table>
           </div>
         )}
       </div>
     </div>
   );
 }
-
-const btnStyle = {
-  padding: "10px 14px",
-  borderRadius: 12,
-  border: "1px solid #111827",
-  background: "white",
-  cursor: "pointer",
-};
-
-const inputStyle = {
-  padding: 10,
-  borderRadius: 12,
-  border: "1px solid #e5e7eb",
-  minWidth: 320,
-  background: "white",
-};
-
-const selectStyle = {
-  padding: 10,
-  borderRadius: 12,
-  border: "1px solid #e5e7eb",
-  background: "white",
-};
-
-const selectStyleWide = {
-  ...selectStyle,
-  minWidth: 260,
-};

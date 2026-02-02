@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
-const API = "http://localhost:3001";
+const API = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
 export default function DetailPage() {
   const { id } = useParams();
@@ -18,31 +18,38 @@ export default function DetailPage() {
     return Object.entries(data).sort((a, b) => a[0].localeCompare(b[0]));
   }, [item]);
 
-  if (!item) return <div>Chargement...</div>;
+  if (!item) return <div className="page"><div className="card">Chargement...</div></div>;
 
   return (
-    <div>
-      <Link to="/">← Retour</Link>
-      <h2 style={{ marginTop: 12, marginBottom: 6 }}>
-        FE {item.numero_fe || "(vide)"}
-      </h2>
-      <div style={{ color: "#666", marginBottom: 12 }}>
-        Statut: <b>{item.statut || ""}</b>
+    <div className="page">
+      <div className="pageHeader">
+        <div>
+          <h2 className="pageTitle">FE {item.numero_fe || "(vide)"}</h2>
+          <div className="pageSubtitle">
+            Statut : <b>{item.statut || "—"}</b>
+          </div>
+        </div>
+
+        <Link className="btn" to="/accueil" style={{ textDecoration: "none", display: "inline-flex", alignItems: "center" }}>
+          ← Retour
+        </Link>
       </div>
 
-      <h3 style={{ margin: "12px 0" }}>Toutes les colonnes (DATA)</h3>
+      <div className="card">
+        <div className="cardTitle">Toutes les colonnes (DATA)</div>
 
-      <div style={{ overflowX: "auto" }}>
-        <table border="1" cellPadding="8" style={{ width: "100%", borderCollapse: "collapse" }}>
-          <tbody>
-            {entries.map(([k, v]) => (
-              <tr key={k}>
-                <td style={{ width: 320, fontWeight: 600 }}>{k}</td>
-                <td>{String(v ?? "")}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="tableWrap">
+          <table className="table">
+            <tbody>
+              {entries.map(([k, v]) => (
+                <tr key={k} className="trHover">
+                  <td className="td" style={{ width: 360, fontWeight: 900 }}>{k}</td>
+                  <td className="td">{String(v ?? "")}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

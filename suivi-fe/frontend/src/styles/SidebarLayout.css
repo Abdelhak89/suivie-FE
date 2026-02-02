@@ -1,0 +1,91 @@
+.appShell{
+  display:grid;
+  grid-template-columns: 310px 1fr;
+  min-height: 100vh;
+}
+
+.side{
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  padding: 16px;
+  border-right: 1px solid var(--border);
+  background:
+    radial-gradient(600px 260px at 30% 0%, rgba(37,99,235,.18), transparent 60%),
+    linear-gradient(180deg, rgba(255,255,255,.65), rgba(255,255,255,.35));
+  backdrop-filter: blur(10px);
+}
+
+.main{
+  padding: 18px;
+}
+
+.brand{
+  display:flex;
+  align-items:center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.brandLogo{
+  width: 44px; height: 44px;
+  border-radius: 14px;
+  display:flex; align-items:center; justify-content:center;
+  font-weight: 950;
+  color: white;
+  background: linear-gradient(135deg, rgba(37,99,235,1), rgba(56,189,248,.95));
+  box-shadow: var(--shadow-md);
+}
+.brandTitle{ font-weight: 950; letter-spacing: -.02em; }
+.brandSub{ color: var(--muted); font-size: 12px; margin-top: 2px; }
+
+.meCard{
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,.70);
+  box-shadow: var(--shadow-sm);
+  padding: 14px;
+}
+.meName{ font-weight: 950; }
+.meMeta{ margin-top: 10px; display:flex; gap: 8px; flex-wrap: wrap; }
+.meActions{ margin-top: 12px; display:flex; gap: 10px; }
+
+.sideNav{
+  margin-top: 14px;
+  display:flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.navItem{
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid transparent;
+  color: rgba(11,18,32,.82);
+  background: transparent;
+  font-weight: 850;
+  transition: background .12s ease, border-color .12s ease, transform .12s ease;
+}
+.navItem:hover{
+  background: rgba(37,99,235,.08);
+  border-color: rgba(37,99,235,.18);
+  transform: translateY(-1px);
+}
+.navItem.active{
+  background: linear-gradient(135deg, rgba(37,99,235,.16), rgba(56,189,248,.12));
+  border-color: rgba(37,99,235,.25);
+}
+
+.sideBottom{
+  position: absolute;
+  bottom: 16px;
+  left: 16px;
+  right: 16px;
+}
+.sideHint{
+  color: var(--muted);
+  font-size: 12px;
+}
+
+@media (max-width: 1050px){
+  .appShell{ grid-template-columns: 1fr; }
+  .side{ position: relative; height: auto; }
+}

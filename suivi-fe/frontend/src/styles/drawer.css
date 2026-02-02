@@ -1,39 +1,65 @@
 .drawerOverlay{
   position: fixed;
   inset: 0;
-  background: rgba(17,24,39,.35);
-  display: flex;
-  justify-content: flex-end;
-  z-index: 999;
+  background: rgba(2,6,23,0.55);
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  z-index: 60;
 }
 
 .drawer{
-  width: min(560px, 92vw);
-  height: 100%;
-  background: var(--panel);
-  border-left: 1px solid var(--border);
+  width: min(980px, 96vw);
+  max-height: 88vh;
+  overflow: hidden;
+
+  background: rgba(255,255,255,0.92);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  box-shadow: 0 30px 90px rgba(2,6,23,0.35);
+
   display: flex;
   flex-direction: column;
 }
 
 .drawerHeader{
-  padding: 14px 14px 10px;
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  align-items: flex-start;
+  display:flex;
   justify-content: space-between;
-  gap: 10px;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px;
+  border-bottom: 1px solid rgba(15,23,42,0.08);
 }
 
-.drawerTitle{ font-weight: 900; font-size: 16px; }
-.drawerSub{ color: var(--muted); font-size: 13px; margin-top: 4px; }
+.drawerTitle{
+  font-weight: 950;
+  font-size: 16px;
+  margin: 0;
+  color: var(--text);
+}
+
+.drawerSubRow{
+  margin-top: 8px;
+  display:flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  color: var(--muted);
+  font-size: 13px;
+}
 
 .drawerClose{
-  border: 1px solid var(--border);
-  background: white;
-  border-radius: 10px;
-  padding: 6px 10px;
+  border: 1px solid rgba(15,23,42,0.12);
+  background: rgba(255,255,255,0.85);
+  border-radius: 14px;
+  padding: 8px 10px;
   cursor: pointer;
+  font-weight: 900;
+}
+.drawerClose:hover{
+  box-shadow: var(--shadow2);
+  transform: translateY(-1px);
 }
 
 .drawerBody{
@@ -41,51 +67,66 @@
   overflow: auto;
 }
 
-.drawerSection{ margin-bottom: 16px; }
+.drawerSection{
+  background: rgba(255,255,255,0.75);
+  border: 1px solid rgba(15,23,42,0.08);
+  border-radius: 18px;
+  padding: 12px;
+  box-shadow: 0 12px 26px rgba(2,6,23,0.06);
+}
+.drawerSection + .drawerSection{ margin-top: 12px; }
+
 .drawerSectionTitle{
-  font-weight: 900;
+  font-weight: 950;
+  font-size: 13px;
+  color: var(--text);
   margin-bottom: 10px;
 }
 
-.kv{ border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
-.kvRow{ display: grid; grid-template-columns: 160px 1fr; }
-.kvKey{ padding: 10px; background: #fafafb; font-weight: 800; border-bottom: 1px solid var(--border); }
-.kvVal{ padding: 10px; border-bottom: 1px solid var(--border); }
+.kv{
+  display: grid;
+  gap: 8px;
+}
+.kvRow{
+  display:grid;
+  grid-template-columns: 160px 1fr;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 14px;
+  border: 1px solid rgba(15,23,42,0.06);
+  background: rgba(255,255,255,0.8);
+}
+.kvKey{ color: var(--muted); font-size: 12px; font-weight: 900; }
+.kvVal{ color: var(--text); font-size: 13px; }
 
 .dataList{
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  overflow: hidden;
-}
-
-.dataRow{
   display: grid;
-  grid-template-columns: 220px 1fr;
-  border-bottom: 1px solid #f0f0f3;
+  gap: 8px;
 }
-
+.dataRow{
+  display:grid;
+  grid-template-columns: 1fr 1.2fr;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 14px;
+  border: 1px solid rgba(15,23,42,0.06);
+  background: rgba(255,255,255,0.8);
+}
 .dataKey{
-  padding: 10px;
-  background: #fafafb;
-  font-weight: 700;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
 }
-
 .dataVal{
-  padding: 10px;
+  color: var(--text);
+  font-size: 13px;
+  white-space: pre-wrap;
   word-break: break-word;
 }
 
 .drawerFooter{
-  padding: 12px 14px;
-  border-top: 1px solid var(--border);
-  display: flex;
+  padding: 14px;
+  border-top: 1px solid rgba(15,23,42,0.08);
+  display:flex;
   justify-content: flex-end;
-}
-
-.btn{
-  padding: 10px 12px;
-  border-radius: 12px;
-  border: 1px solid var(--border);
-  background: white;
-  cursor: pointer;
 }

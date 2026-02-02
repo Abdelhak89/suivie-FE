@@ -1,0 +1,75 @@
+// backend/src/data/participants.js
+export const PARTICIPANTS = [
+  { name: "ALLOUIS Adrien", email: "adrien.allouis-leclercq@kepmetal.com", service: "Responsable Contrôle" },
+  { name: "BLANQUART Nicolas", email: "nicolas.blanquart@kepmetal.com", service: "Qualité" },
+  { name: "BONTEMPS Sebastien", email: "sebastien.bontemps@kepmetal.com", service: "Responsable Supply Chain" },
+  { name: "BONVARLET Sandrine", email: "sandrine.bonvarlet@kepmetal.com", service: "Assistante de Direction – RH" },
+  { name: "BOUEYA Moïse", email: "moise.boueya@kepmetal.com", service: "QSE" },
+  { name: "BRISDET Trystan", email: "trystan.brisdet@kepmetal.com", service: "Qualité" },
+  { name: "BROSSIER Rodolphe", email: "rodolphe.brossier@kepmetal.com", service: "Responsable Tolerie" },
+  { name: "CHAPPELART Vivien", email: "vivien.chappelart@kepmetal.com", service: "Informatique" },
+  { name: "CHERNI Achref", email: "achref.cherni@kepmetal.com", service: "Coordinateur ERP" },
+  { name: "COURATIER Jean-Philippe", email: "jean-philippe.couratier@kepmetal.com", service: "Outillages" },
+  { name: "COURTY Fabien", email: "fabien.courty@kepmetal.com", service: "Responsable Outillages" },
+  { name: "DOBY Sandrine", email: "sandrine.doby@kepmetal.com", service: "Qualité" },
+  { name: "ES-SHIH Abdelhak", email: "abdelhak.es-shih@kepmetal.com", service: "Méthode" },
+  { name: "soucy.expedition", email: "soucy.expedition@kepmetal.com", service: "Magasin" },
+  { name: "FERDOUEL Ronan", email: "ronan.ferdouel@kepmetal.com", service: "Gestionnaire de Flux" },
+  { name: "FLE Corinne", email: "corinne.fle@kepmetal.com", service: "Gestionnaire de flux" },
+  { name: "GABILLON Anne", email: "anne.gabillon@kepmetal.com", service: "Achats" },
+  { name: "GABLE Marie", email: "marie.gable@kepmetal.com", service: "Achats" },
+  { name: "GAILLARDOT Laurent", email: "laurent.gaillardot@kepmetal.com", service: "Outillages" },
+  { name: "GESS Sebastien", email: "sebastien.gess@kepmetal.com", service: "Logistique en magasinage" },
+  { name: "GIRARDEAU Alexandra", email: "alexandra.girardeau@kepmetal.com", service: "Assistante RH" },
+  { name: "GRATIAS Julien", email: "julien.gratias@kepmetal.com", service: "Méthodes" },
+  { name: "JACQUET Stéphane", email: "stephane.jacquet@kepmetal.com", service: "Chef atelier mécanique et procédés spéciaux" },
+  { name: "KAPIS Sandrine", email: "sandrine.kapis@kepmetal.com", service: "Comptabilité" },
+  { name: "LABEDIE Jean-Baptiste", email: "jean-baptiste.labedie@kepmetal.com", service: "Responsable Production" },
+  { name: "LAKBAKBI Aicha", email: "aicha.lakbakbi@kepmetal.com", service: "Animateur PS - Audit" },
+  { name: "LAPOTRE Damien", email: "damien.lapotre@kepmetal.com", service: "Méthodes" },
+  { name: "LECOQ Charlène", email: "charlene.lecoq@kepmetal.com", service: "Achats" },
+  { name: "magasins1", email: "magasins1@kepmetal.com", service: "Magasin" },
+  { name: "NAURY Sylvain", email: "sylvain.naury@kepmetal.com", service: "Indus" },
+  { name: "PATUROT Gaëlle", email: "gaelle.paturot@kepmetal.com", service: "Comptabilité" },
+  { name: "PEIFFERT Maxime", email: "maxime.peiffert@kepmetal.com", service: "Devis" },
+  { name: "PEREIRA LETHUMIER Magali", email: "magali.pereira-lethumier@kepmetal.com", service: "Coordinatrice Achats" },
+  { name: "PICQ Hervé", email: "herve.picq@kepmetal.com", service: "Gestionnaire de Flux" },
+  { name: "PILLARD Yannick", email: "yannick.pillard@kepmetal.com", service: "Achats" },
+  { name: "patrice.labedie", email: "patrice.labedie@kepmetal.com", service: "Réception" },
+  { name: "alexandre.revillon", email: "alexandre.revillon@kepmetal.com", service: "" },
+  { name: "ROUSSELOT Jerome", email: "jerome.rousselot@kepmetal.com", service: "Indus" },
+  { name: "SANCHEZ WRIGHT Juliette", email: "juliette.sanchez-wright@kepmetal.com", service: "Qualité" },
+  { name: "SANGLIER Jean-Pierre", email: "jean-pierre.sanglier@kepmetal.com", service: "Responsable de Site" },
+  { name: "SAVOURÉ Clément", email: "savoure.clement@kepmetal.com", service: "Gestionnaire de Flux" },
+  { name: "SDRAULIG Florence", email: "florence.sdraulig@kepmetal.com", service: "Qualité" },
+  { name: "SEBASTIAO Antonio", email: "antonio-ricardo.sebastiao@kepmetal.com", service: "Acheteur Famille" },
+  { name: "SOILIHI Zaidane", email: "zaidane.soilihi@kepmetal.com", service: "Ingénieur Indus" },
+  { name: "STANDARD", email: "accueil.soucy@kepmetal.com", service: "Accueil / Secrétariat" },
+  { name: "VADOT Antoine", email: "antoine.vadot@kepmetal.com", service: "Technicien planification" },
+  { name: "VALJEVAC Semir", email: "semir.valjevac@kepmetal.com", service: "Chef atelier Presses" },
+  { name: "YOT Laurent", email: "laurent.yot@kepmetal.com", service: "Responsable Technique" },
+  { name: "Bougeneaux Stephane", email: "stephane.bougeneaux@kep-technologies.com", service: "Leader Usinage" },
+  { name: "MARIA Laurent", email: "laurent.maria@kepmetal.com", service: "Leader Tours" },
+
+];
+
+// normalisation solide (accents + casse + espaces)
+export function norm(s) {
+  return String(s || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // accents
+    .replace(/[^a-z0-9@.\s-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+// match "nom", "prenom", "morceaux"
+export function matchesPerson(person, query) {
+  const q = norm(query);
+  if (!q) return true;
+
+  const hay = norm(`${person.name} ${person.email || ""} ${person.service || ""}`);
+  const tokens = q.split(" ").filter(Boolean);
+  return tokens.every((t) => hay.includes(t));
+}
