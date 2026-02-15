@@ -1,92 +1,186 @@
-// src/exports/alerteQualiteExport.js
-import path from "path";
+// backend/src/exports/alerteQualiteExport.js
 import ExcelJS from "exceljs";
+import path from "path";
+import { getClientNameFromCode } from "../data/clients.js";
 
-// --- mapping client par 3 premiers chiffres du N° FE
-// tu complètes cette table
-const CLIENT_BY_CODE = {
-  "141": "SAFRAN AIRCRAFT ENGINES",
-  "154": "EXOSENS / PHOTONIS",
-  "393": "SED Cockpit Solutions",
-  // ...
-};
+const cleanKey = (k) =>
+  String(k || "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .replace(/\//g, "_")
+    .replace(/[.]/g, "")
+    .replace(/[%]/g, "pct");
 
-function formatDateFR(dateLike) {
-  if (!dateLike) return "";
-  const d = new Date(dateLike);
-  if (isNaN(d.getTime())) return String(dateLike);
-  const dd = String(d.getDate()).padStart(2, "0");
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const yy = d.getFullYear();
-  return `${dd}/${mm}/${yy}`;
+function getDataByKeys(fe, ...keys) {
+  const data = fe?.data;
+  if (!data || typeof data !== "object") return "";
+
+  const wanted = new Set(keys.map(cleanKey));
+  for (const [k, v] of Object.entries(data)) {
+    if (wanted.has(cleanKey(k))) {
+      if (v !== null && v !== undefined && String(v).trim() !== "") return String(v);
+    }
+  }
+  return "";
 }
 
-// ExcelJS: écrire dans une cellule nommée
-function setNamedCell(workbook, name, value) {
-  const ranges = workbook.definedNames.getRanges(name);
-  if (!ranges || ranges.length === 0) return false;
+// exceljs: getRanges peut renvoyer Array OU {name,ranges}
+function getNamedRanges(wb, name) {
+  const got = wb.definedNames.getRanges(name);
+  return Array.isArray(got) ? got : got?.ranges || [];
+}
 
-  // on prend le 1er range
-  const addr = ranges[0]; // ex: "Alerte!B4" ou "Sheet1!C10"
-  const [sheetName, cellAddr] = addr.split("!");
-  const ws = workbook.getWorksheet(sheetName);
+// ✅ set value in a named cell like AQ_NUM_FE
+function setNamedCell(wb, name, value) {
+  const ranges = getNamedRanges(wb, name);
+  if (!ranges.length) return false;
+
+  const first = ranges[0]; // ex: "Feuil1!$B$5" ou "'Feuil1'!$B$5"
+  const [sheetPart, cellPart] = first.split("!");
+  const sheetName = sheetPart.replace(/^'/, "").replace(/'$/, "");
+  const addr = cellPart.replace(/\$/g, "");
+
+  const ws = wb.getWorksheet(sheetName);
   if (!ws) return false;
 
-  ws.getCell(cellAddr).value = value ?? "";
+  ws.getCell(addr).value = value ?? "";
   return true;
 }
 
-// Option image: placer dans une zone fixe (simple et fiable)
-function insertImage(workbook, ws, buffer, ext = "png") {
-  const imageId = workbook.addImage({ buffer, extension: ext });
-  // adapte la zone à TON template
-  ws.addImage(imageId, {
-    tl: { col: 1, row: 18 },  // B19
-    br: { col: 8, row: 35 },  // I36
-    editAs: "oneCell",
-  });
+function getNamedRangeSheetAndRef(wb, name) {
+  const ranges = getNamedRanges(wb, name);
+  if (!ranges.length) return null;
+
+  const first = ranges[0];
+  const [sheetPart, refPart] = first.split("!");
+  const sheetName = sheetPart.replace(/^'/, "").replace(/'$/, "");
+  const ref = refPart.replace(/\$/g, ""); // ex: B5 ou A27:G43
+  const ws = wb.getWorksheet(sheetName);
+  if (!ws) return null;
+
+  return { ws, ref };
 }
 
-export async function buildAlerteQualiteXlsx({ feRecord, imageBuffer, imageExt }) {
-  const templatePath = path.resolve("templates/alerte-qualite-template.xlsx");
+// ✅ 23/01/2026
+function toDateFRShort(v) {
+  if (!v) return "";
+  const s = String(v).trim();
+  const iso = s.slice(0, 10);
 
-  const wb = new ExcelJS.Workbook();
-  await wb.xlsx.readFile(templatePath);
-
-  // IMPORTANT: si ton template a 1 seule feuille, on la prend
-  const ws = wb.worksheets[0];
-
-  const numeroFe = feRecord?.numero_fe || "";
-  const clientCode = String(numeroFe).slice(0, 3);
-  const clientName = CLIENT_BY_CODE[clientCode] || clientCode || "";
-
-  // ⚠️ champs venant du JSONB data (selon les vrais intitulés Excel)
-  const data = feRecord?.data || {};
-  const qteEstimee =
-    data["Qte estimee"] ?? data["Qté estimée"] ?? data["Qte estimee "] ?? "";
-  const detailsAnomalie =
-    data["Details de l'anomalie"] ??
-    data["Détails de l'anomalie"] ??
-    data["Details anomalie"] ??
-    "";
-
-  // Remplissage (cellules nommées)
-  setNamedCell(wb, "AQ_NUM_FE", numeroFe);
-  setNamedCell(wb, "AQ_CLIENT", clientName);
-  setNamedCell(wb, "AQ_LANCEMENT", feRecord?.code_lancement || "");
-  setNamedCell(wb, "AQ_REF", feRecord?.code_article || "");
-  setNamedCell(wb, "AQ_DESIGNATION", feRecord?.designation || "");
-  setNamedCell(wb, "AQ_QTE_NC", qteEstimee || "");
-  setNamedCell(wb, "AQ_LIEU_DETECTION", feRecord?.lieu_detection || "");
-  setNamedCell(wb, "AQ_DATE_DETECTION", formatDateFR(feRecord?.date_creation));
-  setNamedCell(wb, "AQ_DESCRIPTION", detailsAnomalie || "");
-
-  // Image si fournie
-  if (imageBuffer && ws) {
-    insertImage(wb, ws, imageBuffer, imageExt || "png");
+  if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) {
+    return `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
   }
 
-  // Retour buffer
-  const out = await wb.xlsx.writeBuffer();
-  return Buffer.from(out);
+  const d = new Date(s);
+  if (!isNaN(d.getTime())) {
+    const dd = String(d.getDate()).padStart(2, "0");
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const yyyy = d.getFullYear();
+    return `${dd}/${mm}/${yyyy}`;
+  }
+
+  return s;
+}
+
+function getClientCodeFromRef(ref) {
+  const s = String(ref || "").trim();
+  return s.slice(0, 3);
+}
+
+// Heuristique simple de hauteur (car ExcelJS ne “auto-fit” pas parfaitement)
+function autoFitRowForText(ws, cellAddress, text, approxCharsPerLine = 55, lineHeight = 15) {
+  const cell = ws.getCell(cellAddress);
+  cell.alignment = { ...(cell.alignment || {}), wrapText: true, vertical: "top" };
+
+  const t = String(text || "");
+  const explicitLines = t.split(/\r?\n/);
+  const estimatedLines = explicitLines.reduce((acc, line) => {
+    const l = line.length;
+    return acc + Math.max(1, Math.ceil(l / approxCharsPerLine));
+  }, 0);
+
+  const row = ws.getRow(cell.row);
+  const minLines = 3; // évite trop petit
+  const lines = Math.max(minLines, estimatedLines);
+  row.height = lines * lineHeight;
+}
+
+function tryAddImageToRange(wb, ws, rangeA1, imagePathAbs) {
+  if (!imagePathAbs) return false;
+
+  const ext = path.extname(imagePathAbs).toLowerCase();
+  const extension = ext === ".png" ? "png" : "jpeg"; // exceljs: png|jpeg
+
+  const imageId = wb.addImage({ filename: imagePathAbs, extension });
+
+  // ExcelJS supporte 'A27:G43' directement
+  ws.addImage(imageId, rangeA1);
+  return true;
+}
+
+export async function buildAlerteQualiteXlsx({ fe, templatePathAbs, imagePathAbs = null }) {
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.readFile(templatePathAbs);
+
+  const numeroFe = fe?.numero_fe || "";
+  const ref = fe?.code_article || "";
+
+  // ✅ client = 3 premiers chiffres de la REF (Code Article)
+  const clientCode = getClientCodeFromRef(ref);
+  const clientName = getClientNameFromCode(clientCode);
+
+  // ✅ mapping template (defined names)
+  setNamedCell(wb, "AQ_NUM_FE", numeroFe);
+  setNamedCell(wb, "AQ_CLIENT", clientName || clientCode || "");
+  setNamedCell(wb, "AQ_LANCEMENT", fe?.code_lancement || "");
+  setNamedCell(wb, "AQ_REF", ref);
+  setNamedCell(wb, "AQ_DESIGNATION", fe?.designation || "");
+
+  const qteNc = getDataByKeys(
+    fe,
+    "Qte estimee",
+    "Qte estimée",
+    "Qté estimée",
+    "Quantité estimée",
+    "Qte NC",
+    "Qté NC"
+  );
+  setNamedCell(wb, "AQ_QTE_NC", qteNc);
+
+  const lieu = fe?.lieu_detection || getDataByKeys(fe, "Lieu Detection", "Lieu détection");
+  setNamedCell(wb, "AQ_LIEU_DETECTION", lieu);
+
+  setNamedCell(wb, "AQ_DATE_DETECTION", toDateFRShort(fe?.date_creation || ""));
+
+  const desc =
+    getDataByKeys(
+      fe,
+      "Details de l'anomalie",
+      "Détails de l'anomalie",
+      "Detail de l'anomalie",
+      "Détail de l'anomalie"
+    ) || "";
+  setNamedCell(wb, "AQ_DESCRIPTION", desc);
+
+  // ✅ wrap + hauteur auto sur AQ_DESCRIPTION
+  const descInfo = getNamedRangeSheetAndRef(wb, "AQ_DESCRIPTION");
+  if (descInfo?.ws && descInfo?.ref && !descInfo.ref.includes(":")) {
+    autoFitRowForText(descInfo.ws, descInfo.ref, desc, 55, 15);
+  }
+
+  // ✅ image : zone A27:G43 (priorité: defined name AQ_IMAGE si c’est une plage)
+  if (imagePathAbs) {
+    const imgInfo = getNamedRangeSheetAndRef(wb, "AQ_IMAGE");
+    if (imgInfo?.ws && imgInfo?.ref) {
+      // si AQ_IMAGE est une plage type A27:G43 → on l'utilise
+      const range = imgInfo.ref.includes(":") ? imgInfo.ref : "A27:G43";
+      tryAddImageToRange(wb, imgInfo.ws, range, imagePathAbs);
+    } else {
+      // fallback: Feuil1 A27:G43
+      const ws = wb.getWorksheet("Feuil1") || wb.worksheets?.[0];
+      if (ws) tryAddImageToRange(wb, ws, "A27:G43", imagePathAbs);
+    }
+  }
+
+  return await wb.xlsx.writeBuffer();
 }

@@ -1,15 +1,16 @@
+// src/pages/AllFePage.jsx - VERSION ADAPTÉE
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import { getAllFE, getFEByNumero } from "../services/feApi.js";
 import FeDrawer from "../components/FeDrawer.jsx";
 import "../styles/app.css";
-
-const API = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
 export default function AllFePage() {
   const [sp] = useSearchParams();
   const annee = sp.get("annee") ?? "2026";
 
   const [items, setItems] = useState([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
 
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -17,29 +18,53 @@ export default function AllFePage() {
 
   useEffect(() => {
     const ctrl = new AbortController();
-    setLoading(true);
-
-    const params = new URLSearchParams({ page: "1", pageSize: "200" });
-    if (annee) params.set("annee", annee);
-
-    fetch(`${API}/fe?${params.toString()}`, { signal: ctrl.signal })
-      .then((r) => r.json())
-      .then((d) => setItems(d.items || []))
-      .catch(() => setItems([]))
-      .finally(() => setLoading(false));
-
+    
+    const loadData = async () => {
+      setLoading(true);
+      try {
+        const result = await getAllFE({
+          annee: annee || null,
+          limit: 200
+        });
+        
+        if (!ctrl.signal.aborted) {
+          setItems(result.items || []);
+          setTotal(result.total || 0);
+        }
+      } catch (error) {
+        if (!ctrl.signal.aborted) {
+          console.error("Erreur chargement FE:", error);
+          setItems([]);
+        }
+      } finally {
+        if (!ctrl.signal.aborted) {
+          setLoading(false);
+        }
+      }
+    };
+    
+    loadData();
+    
     return () => ctrl.abort();
   }, [annee]);
 
-  const openDetail = async (id) => {
+  const openDetail = async (numeroFE) => {
     setDrawerOpen(true);
-    setSelectedRecord({ numero_fe: "", statut: "", data: { Chargement: "..." } });
+    setSelectedRecord({ 
+      numero_fe: numeroFE, 
+      statut: "", 
+      data: { Chargement: "..." } 
+    });
+    
     try {
-      const r = await fetch(`${API}/fe/${id}`);
-      const d = await r.json();
-      setSelectedRecord(d);
-    } catch (e) {
-      setSelectedRecord({ numero_fe: "", statut: "", data: { Erreur: String(e) } });
+      const fe = await getFEByNumero(numeroFE);
+      setSelectedRecord(fe);
+    } catch (error) {
+      setSelectedRecord({ 
+        numero_fe: numeroFE, 
+        statut: "", 
+        data: { Erreur: String(error) } 
+      });
     }
   };
 
@@ -50,7 +75,9 @@ export default function AllFePage() {
           <h2 className="h1">Toutes les FE</h2>
           <div className="sub">Année : <b>{annee || "toutes"}</b></div>
         </div>
-        <span className="badge badgeBlue">{loading ? "Chargement…" : `${items.length} FE`}</span>
+        <span className="badge badgeBlue">
+          {loading ? "Chargement…" : `${total} FE`}
+        </span>
       </div>
 
       <div className="panel">
@@ -71,22 +98,53 @@ export default function AllFePage() {
               </thead>
               <tbody>
                 {items.map((r) => (
-                  <tr key={r.id} className="rowHover" onMouseDown={() => openDetail(r.id)} style={{ cursor: "pointer" }}>
+                  <tr 
+                    key={r.numero_fe} 
+                    className="rowHover" 
+                    onMouseDown={() => openDetail(r.numero_fe)} 
+                    style={{ cursor: "pointer" }}
+                  >
                     <td className="td"><b>{r.numero_fe || "—"}</b></td>
-                    <td className="td">{r.statut || "—"}</td>
+                    <td className="td">
+                      <span style={{
+                        padding: "4px 8px",
+                        borderRadius: 8,
+                        fontSize: 11,
+                        fontWeight: 600,
+                        background: r.statut === "Traitée" ? "#dcfce7" : "#fef3c7",
+                        color: r.statut === "Traitée" ? "#166534" : "#92400e"
+                      }}>
+                        {r.statut || "—"}
+                      </span>
+                    </td>
                     <td className="td">{r.code_article || "—"}</td>
                     <td className="td">{r.designation || "—"}</td>
                     <td className="td">{r.code_lancement || "—"}</td>
-                    <td className="td">{String(r.date_creation || "").slice(0, 10) || "—"}</td>
+                    <td className="td">
+                      {r.date_creation 
+                        ? new Date(r.date_creation).toLocaleDateString('fr-FR')
+                        : "—"}
+                    </td>
                   </tr>
                 ))}
+                {!items.length && !loading && (
+                  <tr>
+                    <td className="td" colSpan={6} style={{ textAlign: "center", color: "#9ca3af" }}>
+                      Aucune FE trouvée
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
         )}
       </div>
 
-      <FeDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} record={selectedRecord} />
+      <FeDrawer 
+        open={drawerOpen} 
+        onClose={() => setDrawerOpen(false)} 
+        record={selectedRecord} 
+      />
     </div>
   );
 }

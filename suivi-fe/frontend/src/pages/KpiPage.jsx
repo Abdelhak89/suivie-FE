@@ -1,12 +1,12 @@
-// frontend/src/pages/KpiPage.jsx
+// src/pages/KpiPage.jsx - VERSION ADAPTÉE POUR NOUVELLE API
 import { useEffect, useMemo, useState } from "react";
 import { ResponsiveBar } from "@nivo/bar";
 import { ResponsivePie } from "@nivo/pie";
 import { ResponsiveLine } from "@nivo/line";
 import { getClientNameFromRef } from "../data/clients.js";
+import { getAllFE, getStats } from "../services/feApi.js";
 
-const API = import.meta.env.VITE_API_URL || "http://localhost:3001";
-
+// ... (garder toutes les fonctions utilitaires: cleanKey, getDataByKeys, parseQteEstimee, etc.)
 const cleanKey = (k) =>
   String(k || "")
     .trim()
@@ -26,41 +26,38 @@ function getDataByKeys(fe, ...keys) {
 }
 
 function parseQteEstimee(fe) {
-  const v =
-    getDataByKeys(fe, "Qte estimee", "Qte estimée", "Qté estimée", "Qte NC", "Qté NC") ??
+  const v = fe.qte_non_conforme || 
+    getDataByKeys(fe, "Qte estimee", "Qte estimée", "Qté estimée", "Qte NC", "Qté NC") ||
     "";
   const n = Number(String(v).replace(",", ".").replace(/[^\d.]/g, ""));
   return Number.isFinite(n) ? n : 0;
 }
 
-// axe 1 : "client interne fournisseur" -> on prend Origine (si tu as mieux, on adapte)
 function getInterneExterne(fe) {
-  const o = String(fe?.origine || getDataByKeys(fe, "Origine") || "").toLowerCase();
+  const o = String(fe?.origine || "").toLowerCase();
   if (!o) return "Non renseigné";
-  // tu peux ajuster ces règles
   if (o.includes("fourn")) return "Fournisseur";
   if (o.includes("client")) return "Client";
-  if (o.includes("inter")) return "Interne";
+  if (o.includes("inter") || o.includes("cint")) return "Interne";
   return (fe?.origine || "Autre").toString();
 }
 
-// axe 2 : type de défaut (souvent dans data)
 function getTypeDefaut(fe) {
-  const v = getDataByKeys(
+  const v = fe.type_nc || getDataByKeys(
     fe,
     "Type de défaut",
     "Type de defaut",
     "Type défaut",
-    "Type defaut",
-    "Défaut",
-    "Defaut"
+    "Type defaut"
   );
   return String(v || "Non renseigné");
 }
 
-// axe 3 : îlot générateur
 function getIlot(fe) {
-  return String(fe?.ilot_generateur || getDataByKeys(fe, "ILOT GENERATEUR", "Ilot générateur", "Ilot generateur") || "Non renseigné");
+  return String(
+    getDataByKeys(fe, "ILOT GENERATEUR", "Ilot générateur", "Ilot generateur") || 
+    "Non renseigné"
+  );
 }
 
 function isoToYmd(v) {
@@ -82,15 +79,6 @@ function groupCount(rows, keyFn) {
   for (const r of rows) {
     const k = keyFn(r);
     m.set(k, (m.get(k) || 0) + 1);
-  }
-  return m;
-}
-
-function groupSum(rows, keyFn, valFn) {
-  const m = new Map();
-  for (const r of rows) {
-    const k = keyFn(r);
-    m.set(k, (m.get(k) || 0) + (valFn(r) || 0));
   }
   return m;
 }
@@ -118,33 +106,39 @@ export default function KpiPage() {
   const [annee, setAnnee] = useState("2026");
   const [loading, setLoading] = useState(false);
   const [all, setAll] = useState([]);
+  const [stats, setStats] = useState(null);
 
-  // filtres
-  const [fClient, setFClient] = useState(""); // nom client
+  const [fClient, setFClient] = useState("");
   const [fIlot, setFIlot] = useState("");
-  const [fOrigine, setFOrigine] = useState(""); // Interne / Client / Fournisseur
+  const [fOrigine, setFOrigine] = useState("");
   const [fTypeDefaut, setFTypeDefaut] = useState("");
 
-  // drilldown
-  const [drill, setDrill] = useState(null); // { title, rows }
+  const [drill, setDrill] = useState(null);
 
   useEffect(() => {
-    const ctrl = new AbortController();
-    setLoading(true);
+    const loadData = async () => {
+      setLoading(true);
+      try {
+        // Charger les stats globales
+        const statsData = await getStats();
+        setStats(statsData);
 
-    const params = new URLSearchParams({ page: "1", pageSize: "100" }); // à monter si besoin
-    if (annee) params.set("annee", annee);
+        // Charger toutes les FE pour les graphiques
+        const result = await getAllFE({ 
+          annee: annee || null,
+          limit: 5000 // Limite haute pour KPI
+        });
+        
+        setAll(result.items || []);
+      } catch (error) {
+        console.error("Erreur chargement KPI:", error);
+        setAll([]);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-    // NOTE: si tu as + de 100 FE, on peut paginer (je te le ferai après)
-    fetch(`${API}/fe?${params.toString()}`, { signal: ctrl.signal })
-      .then((r) => r.json())
-      .then((d) => setAll(d.items || []))
-      .catch((e) => {
-        if (e?.name !== "AbortError") console.error(e);
-      })
-      .finally(() => setLoading(false));
-
-    return () => ctrl.abort();
+    loadData();
   }, [annee]);
 
   const enriched = useMemo(() => {
@@ -198,31 +192,26 @@ export default function KpiPage() {
     });
   }, [enriched, fClient, fIlot, fOrigine, fTypeDefaut]);
 
-  // KPIs
   const total = filtered.length;
   const totalQteNc = filtered.reduce((s, x) => s + (x._qteNc || 0), 0);
 
-  // Pareto client (COUNT)
   const paretoClient = useMemo(() => {
     const map = groupCount(filtered, (x) => x._client);
     return toPareto(map, 10).map((d) => ({ id: d.label, label: d.label, value: d.value }));
   }, [filtered]);
 
-  // Pareto îlot (COUNT)
   const paretoIlot = useMemo(() => {
     const map = groupCount(filtered, (x) => x._ilot);
     const arr = toPareto(map, 10);
     return arr.map((d) => ({ label: d.label, value: d.value }));
   }, [filtered]);
 
-  // Pareto type défaut (COUNT)
   const paretoType = useMemo(() => {
     const map = groupCount(filtered, (x) => x._typeDefaut);
     const arr = toPareto(map, 10);
     return arr.map((d) => ({ label: d.label, value: d.value }));
   }, [filtered]);
 
-  // Origine (pie)
   const pieOrigine = useMemo(() => {
     const map = groupCount(filtered, (x) => x._origine);
     const arr = [...map.entries()].map(([k, v]) => ({ id: k, label: k, value: v }));
@@ -230,24 +219,17 @@ export default function KpiPage() {
     return arr;
   }, [filtered]);
 
-  // Série temporelle (par semaine simple via date_creation -> YYYY-WW approx)
   const lineWeekly = useMemo(() => {
-    // si tu as déjà fe.semaine + fe.annee, c'est mieux
-    const map = new Map(); // key = "YYYY-WW"
+    const map = new Map();
     for (const x of filtered) {
-      const key = x?.annee && x?.semaine ? `${x.annee}-S${String(x.semaine).padStart(2, "0")}` : (x._date ? x._date.slice(0, 7) : "NA");
+      const key = x._date ? x._date.slice(0, 7) : "NA";
       map.set(key, (map.get(key) || 0) + 1);
     }
     const points = [...map.entries()]
       .map(([k, v]) => ({ x: k, y: v }))
       .sort((a, b) => String(a.x).localeCompare(String(b.x)));
 
-    return [
-      {
-        id: "FE",
-        data: points,
-      },
-    ];
+    return [{ id: "FE", data: points }];
   }, [filtered]);
 
   function openDrill(title, rows) {
@@ -316,16 +298,14 @@ export default function KpiPage() {
         </div>
       </div>
 
-      {/* KPI cards */}
       <div style={styles.cards}>
         <Card title="FE (filtrées)" value={total} sub={`Année: ${annee || "Toutes"}`} />
-        <Card title="Qté NC estimée" value={totalQteNc.toLocaleString("fr-FR")} sub="Somme Qte estimée" />
+        <Card title="Qté NC estimée" value={totalQteNc.toLocaleString("fr-FR")} sub="Somme Qte NC" />
         <Card title="Clients touchés" value={new Set(filtered.map(x => x._client)).size} sub="via 3 chiffres REF" />
         <Card title="Îlots touchés" value={new Set(filtered.map(x => x._ilot)).size} sub="ILOT GENERATEUR" />
       </div>
 
       <div style={styles.grid}>
-        {/* Pareto îlot */}
         <div style={styles.panel}>
           <div style={styles.panelTitle}>Pareto — Îlot générateur (Top 10)</div>
           <div style={styles.panelSub}>Clique une barre pour voir le détail</div>
@@ -346,7 +326,6 @@ export default function KpiPage() {
           </div>
         </div>
 
-        {/* Pareto type défaut */}
         <div style={styles.panel}>
           <div style={styles.panelTitle}>Pareto — Type de défaut (Top 10)</div>
           <div style={styles.panelSub}>Clique une barre pour voir le détail</div>
@@ -367,7 +346,6 @@ export default function KpiPage() {
           </div>
         </div>
 
-        {/* Pie origine */}
         <div style={styles.panel}>
           <div style={styles.panelTitle}>Répartition — Interne / Client / Fournisseur</div>
           <div style={styles.panelSub}>Clique une part pour voir le détail</div>
@@ -388,7 +366,6 @@ export default function KpiPage() {
           </div>
         </div>
 
-        {/* Pareto client */}
         <div style={styles.panel}>
           <div style={styles.panelTitle}>Pareto — Clients (Top 10)</div>
           <div style={styles.panelSub}>Client = 3 premiers chiffres de la REF</div>
@@ -409,10 +386,9 @@ export default function KpiPage() {
           </div>
         </div>
 
-        {/* Trend */}
         <div style={{ ...styles.panel, gridColumn: "1 / -1" }}>
-          <div style={styles.panelTitle}>Tendance — FE par semaine / mois</div>
-          <div style={styles.panelSub}>Clique un point pour zoomer (drilldown simple)</div>
+          <div style={styles.panelTitle}>Tendance — FE par mois</div>
+          <div style={styles.panelSub}>Clique un point pour zoomer</div>
           <div style={{ ...styles.chart, height: 320 }}>
             <ResponsiveLine
               data={lineWeekly}
@@ -425,7 +401,7 @@ export default function KpiPage() {
               onClick={(point) => {
                 const key = point?.data?.x;
                 drillBy(`Détail — Période: ${key}`, (x) => {
-                  const k = x?.annee && x?.semaine ? `${x.annee}-S${String(x.semaine).padStart(2, "0")}` : (x._date ? x._date.slice(0, 7) : "NA");
+                  const k = x._date ? x._date.slice(0, 7) : "NA";
                   return k === key;
                 });
               }}
@@ -434,7 +410,6 @@ export default function KpiPage() {
         </div>
       </div>
 
-      {/* DRILLDOWN */}
       {drill ? (
         <div style={styles.drillOverlay} onClick={() => setDrill(null)}>
           <div style={styles.drill} onClick={(e) => e.stopPropagation()}>
@@ -462,7 +437,7 @@ export default function KpiPage() {
                 </thead>
                 <tbody>
                   {drill.rows.slice(0, 300).map((x) => (
-                    <tr key={x.id}>
+                    <tr key={x.numero_fe}>
                       <td style={styles.td}>{x.numero_fe || "—"}</td>
                       <td style={styles.td}>{x._date || "—"}</td>
                       <td style={styles.td}>{x._client || "—"}</td>
@@ -475,11 +450,6 @@ export default function KpiPage() {
                   ))}
                 </tbody>
               </table>
-              {drill.rows.length > 300 ? (
-                <div style={{ color: "#6b7280", fontSize: 12, marginTop: 8 }}>
-                  Affichage limité à 300 lignes (on peut ajouter pagination/export CSV si tu veux).
-                </div>
-              ) : null}
             </div>
           </div>
         </div>
@@ -488,6 +458,7 @@ export default function KpiPage() {
   );
 }
 
+// ... (garder tous les styles)
 const styles = {
   page: {
     padding: 16,
