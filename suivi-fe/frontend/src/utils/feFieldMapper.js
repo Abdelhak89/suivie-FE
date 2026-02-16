@@ -2,6 +2,22 @@
 // Mapper les champs de la table NCONFORMITE vers l'affichage
 
 /**
+ * Décoder le type NC depuis OrigineNonConf
+ */
+function decodeTypeNC(code) {
+  if (!code) return null;
+  
+  const mapping = {
+    "CINT": "Interne",
+    "DFOU": "Fournisseur", 
+    "RCLI": "Client",
+    "CEXT": "Client Externe"
+  };
+  
+  return mapping[code.trim()] || code;
+}
+
+/**
  * Extraire la valeur d'un champ d'une FE
  */
 export function getFieldValue(fe, fieldName) {
@@ -32,25 +48,30 @@ export function getFieldValue(fe, fieldName) {
     "Description": getDescription(fe),
     "Statut": fe.statut,
     "Origine": fe.origine,
-    "Type NC": fe.type_nc,
-    "Type": fe.type_nc,
+    "Type NC": decodeTypeNC(fe.origine), // ✅ CORRIGÉ: décode CINT/DFOU/RCLI
+    "Type": decodeTypeNC(fe.origine),
     "Sous-Origine": fe.sous_origine,
     "Sous-Type": fe.sous_type_nc,
     
     // Quantités
-    "Qté NC": formatNumber(fe.qte_non_conforme),
-    "Qte NC": formatNumber(fe.qte_non_conforme),
+    "Qté NC": formatNumber(fe.qte_estimee), // ✅ CORRIGÉ: utilise qte_estimee
+    "Qte NC": formatNumber(fe.qte_estimee),
     "Qté Non Conforme": formatNumber(fe.qte_non_conforme),
     "Qté Acceptée": formatNumber(fe.qte_acceptee),
     "Qté Remise Conf": formatNumber(fe.qte_remise_conf),
     "Qté Rebutée": formatNumber(fe.qte_rebutee),
-    "Qté Produite": "", // À calculer ou récupérer ailleurs
+    "Qté Produite": formatNumber(fe.qte_produite), // ✅ CORRIGÉ
+    "Qte Produite": formatNumber(fe.qte_produite),
+    "Qté Lancement": formatNumber(fe.qte_lancement),
+    "Qté Estimée": formatNumber(fe.qte_estimee),
     
     // Détection
-    "Détection": fe.lieu_detection || fe.sous_origine,
-    "Lieu Détection": fe.lieu_detection || fe.sous_origine,
-    "Lieu": fe.lieu_detection || fe.sous_origine,
+    "Détection": fe.lieu_detection, // ✅ CORRIGÉ: uniquement lieu_detection (catégorisé)
+    "Lieu Détection": fe.lieu_detection,
+    "Lieu": fe.lieu_detection,
     "Découvert Par": fe.decouvert_par,
+    "Ilot Générateur": fe.ilot_generateur, // ✅ AJOUTÉ
+    "Phase": fe.ilot_generateur,
     
     // Responsabilités
     "Fournisseur Resp": fe.fournisseur_resp,
@@ -87,7 +108,6 @@ export function getFieldValue(fe, fieldName) {
     "Actions préventives": getFromData(fe, ["Actions préventives"]),
     
     // Autres champs spécifiques
-    "Ilot Générateur": getFromData(fe, ["ILOT GENERATEUR", "Ilot générateur"]),
     "Type de défaut": getFromData(fe, ["Type de défaut", "Type defaut"]),
     "Typologie défaut": getFromData(fe, ["Typologie défaut", "Type de défaut"]),
     "NC client": getFromData(fe, ["NC client", "N° rapport client"]),
@@ -208,9 +228,10 @@ export function getRawFieldValue(fe, fieldName) {
     "Désignation": fe.designation,
     "Statut": fe.statut,
     "Origine": fe.origine,
-    "Type NC": fe.type_nc,
-    "Qté NC": fe.qte_non_conforme,
-    "Détection": fe.lieu_detection || fe.sous_origine,
+    "Type NC": fe.origine, // ✅ CORRIGÉ: retourne le code brut (CINT, DFOU, RCLI)
+    "Qté NC": fe.qte_estimee,
+    "Qté Produite": fe.qte_produite,
+    "Détection": fe.lieu_detection,
     "Avancement": fe.avancement_global,
     "Coût Gestion": fe.cout_gestion,
   };

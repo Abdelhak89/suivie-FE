@@ -1,12 +1,11 @@
-// src/pages/ListPage.jsx - VERSION FINALE PATCHÉE
+// src/pages/InterneSeriePage.jsx - Page Interne Série (CINT)
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { getAllFE } from "../services/feApi.js";
 
-export default function ListPage() {
+export default function InterneSeriePage() {
   const [q, setQ] = useState("");
-  const [statut, setStatut] = useState("En cours"); // PAR DÉFAUT : EN COURS
-  const [origine, setOrigine] = useState("");
+  const [statut, setStatut] = useState("En cours");
   const [annee, setAnnee] = useState("2026");
 
   const [page, setPage] = useState(1);
@@ -22,11 +21,10 @@ export default function ListPage() {
     const loadData = async () => {
       setLoading(true);
       try {
-        // Utiliser getAllFE avec tous les paramètres (y compris q pour la recherche)
         const result = await getAllFE({
           q: q.trim() || null,
           statut: statut || null,
-          origine: origine || null,
+          origine: "CINT", // ✅ CORRIGÉ : Client Interne
           annee: annee || null,
           limit: pageSize,
           offset: (page - 1) * pageSize
@@ -38,7 +36,7 @@ export default function ListPage() {
         }
       } catch (error) {
         if (!ctrl.signal.aborted) {
-          console.error("Erreur chargement FE:", error);
+          console.error("Erreur chargement FE Internes:", error);
           alert("Erreur lors du chargement des FE");
         }
       } finally {
@@ -51,7 +49,7 @@ export default function ListPage() {
     loadData();
     
     return () => ctrl.abort();
-  }, [q, statut, origine, annee, page]);
+  }, [q, statut, annee, page]);
 
   const pages = Math.max(1, Math.ceil(total / pageSize));
 
@@ -59,11 +57,21 @@ export default function ListPage() {
     <div style={{ padding: 16 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
         <div>
-          <h2 style={{ margin: 0 }}>Liste des Fiches Événements</h2>
+          <h2 style={{ margin: 0 }}>Interne Série</h2>
           <div style={{ color: "#666", marginTop: 4 }}>
-            {loading ? "Chargement..." : `${total} FE trouvées`}
+            {loading ? "Chargement..." : `${total} FE internes trouvées`}
           </div>
         </div>
+        <span style={{
+          padding: "6px 12px",
+          borderRadius: 8,
+          background: "#dbeafe",
+          color: "#1e40af",
+          fontSize: 12,
+          fontWeight: 700
+        }}>
+          CINT - Client Interne
+        </span>
       </div>
 
       {/* Filtres */}
@@ -120,28 +128,11 @@ export default function ListPage() {
           <option value="En cours">⚠️ En cours</option>
           <option value="Traitée">✅ Traitée</option>
         </select>
-        
-        <select 
-          value={origine} 
-          onChange={(e) => { setPage(1); setOrigine(e.target.value); }}
-          style={{ 
-            padding: 10,
-            border: "1px solid #e5e7eb",
-            borderRadius: 8,
-            minWidth: 150
-          }}
-        >
-          <option value="">Toutes origines</option>
-          <option value="CINT">Interne</option>
-          <option value="CEXT">Externe</option>
-          <option value="CFOU">Fournisseur</option>
-        </select>
 
         <button
           onClick={() => {
             setQ("");
-            setStatut("En cours"); // Reset à "En cours" par défaut
-            setOrigine("");
+            setStatut("En cours");
             setAnnee("2026");
             setPage(1);
           }}
@@ -176,12 +167,12 @@ export default function ListPage() {
               <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: 700 }}>N° FE</th>
               <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: 700 }}>Statut</th>
               <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: 700 }}>Date</th>
-              <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: 700 }}>Origine</th>
-              <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: 700 }}>Type</th>
               <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: 700 }}>Code Article</th>
               <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: 700 }}>Désignation</th>
               <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: 700 }}>Lancement</th>
+              <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: 700 }}>Détection</th>
               <th style={{ padding: "12px 16px", textAlign: "right", fontWeight: 700 }}>Qté NC</th>
+              <th style={{ padding: "12px 16px", textAlign: "right", fontWeight: 700 }}>Qté Produite</th>
             </tr>
           </thead>
           <tbody>
@@ -220,8 +211,6 @@ export default function ListPage() {
                 <td style={{ padding: "12px 16px", color: "#6b7280" }}>
                   {fe.date_creation ? new Date(fe.date_creation).toLocaleDateString('fr-FR') : "—"}
                 </td>
-                <td style={{ padding: "12px 16px" }}>{fe.origine || "—"}</td>
-                <td style={{ padding: "12px 16px" }}>{fe.type_nc || "—"}</td>
                 <td style={{ padding: "12px 16px", fontFamily: "monospace" }}>{fe.code_article || "—"}</td>
                 <td style={{ padding: "12px 16px", maxWidth: 300 }}>
                   {fe.designation ? (
@@ -233,8 +222,12 @@ export default function ListPage() {
                   ) : "—"}
                 </td>
                 <td style={{ padding: "12px 16px", fontFamily: "monospace" }}>{fe.code_lancement || "—"}</td>
+                <td style={{ padding: "12px 16px" }}>{fe.lieu_detection || "—"}</td>
                 <td style={{ padding: "12px 16px", textAlign: "right", fontWeight: 600 }}>
-                  {fe.qte_non_conforme ? Number(fe.qte_non_conforme).toLocaleString('fr-FR') : "—"}
+                  {fe.qte_estimee ? Number(fe.qte_estimee).toLocaleString('fr-FR') : "—"}
+                </td>
+                <td style={{ padding: "12px 16px", textAlign: "right", fontWeight: 600 }}>
+                  {fe.qte_produite ? Number(fe.qte_produite).toLocaleString('fr-FR') : "—"}
                 </td>
               </tr>
             ))}
@@ -248,7 +241,7 @@ export default function ListPage() {
                     color: "#9ca3af"
                   }}
                 >
-                  Aucun résultat trouvé
+                  Aucune FE interne trouvée
                 </td>
               </tr>
             )}
@@ -298,23 +291,6 @@ export default function ListPage() {
           Suivant →
         </button>
       </div>
-
-      {/* Info filtre actif */}
-      {statut === "En cours" && (
-        <div style={{
-          marginTop: 12,
-          padding: "10px 14px",
-          background: "#fef3c7",
-          border: "1px solid #fbbf24",
-          borderRadius: 8,
-          color: "#92400e",
-          fontSize: 13,
-          fontWeight: 600,
-          textAlign: "center"
-        }}>
-          ⚠️ Affichage filtré : FE EN COURS uniquement
-        </div>
-      )}
     </div>
   );
 }
