@@ -1,218 +1,117 @@
-.gridWrap{
+/* ══════════════════════════════════════════
+   SUIVI-FE — FeGrid (FeGrid.jsx)
+   ══════════════════════════════════════════ */
+
+.gridWrap {
   overflow-x: auto;
   border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--panel);
+  border-radius: var(--r-xl);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
 }
 
-.gridTable{
-  border-collapse: separate;
-  border-spacing: 0;
+.gridTable {
   width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
 }
 
-.thGroup{
+/* Groupe header (ligne 1) */
+.thGroup {
+  padding: 7px 14px;
+  text-align: center;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+  background: var(--ink);
+  color: rgba(255,255,255,0.6);
+  border-right: 1px solid rgba(255,255,255,0.1);
+  white-space: nowrap;
+}
+.thGroup:last-child { border-right: none; }
+
+/* Colonne header (ligne 2) */
+.th {
+  padding: 8px 12px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--inkMid);
+  background: var(--surfaceAlt);
+  border-bottom: 2px solid var(--border);
+  border-right: 1px solid var(--border);
+  white-space: nowrap;
   position: sticky;
   top: 0;
-  z-index: 5;
-  background: #f4f5f7;
-  padding: 10px;
-  border-bottom: 1px solid var(--border);
-  text-align: left;
-  font-weight: 900;
-  white-space: nowrap;
+  z-index: 2;
 }
+.th:last-child { border-right: none; }
 
-.th{
-  position: sticky;
-  top: 41px; /* hauteur ligne group */
-  z-index: 4;
-  background: #fafafb;
-  padding: 10px;
-  border-bottom: 1px solid var(--border);
-  text-align: left;
-  font-weight: 800;
-  white-space: nowrap;
-}
-
-.td{
-  padding: 8px 10px;
-  border-bottom: 1px solid #f0f0f3;
-  white-space: nowrap;
-  max-width: 320px;
-}
-
-.rowAlt{
-  background: var(--row-alt);
-}
-
-.empty{
-  color: #9aa0a6;
-  font-style: italic;
-}
-
-.missingCell{
-  background: var(--missing-bg);
-}
-
-.frozen{
-  position: sticky;
+/* Frozen */
+.frozen {
+  position: sticky !important;
   z-index: 3;
-  background: var(--panel);
-  box-shadow: 1px 0 0 var(--border);
+  background: var(--surface);
+  box-shadow: 2px 0 6px rgba(15,23,42,0.05);
 }
+thead .frozen { background: var(--surfaceAlt); z-index: 4; }
 
-.legend{
-  display: flex;
-  gap: 16px;
-  align-items: center;
-  margin: 10px 0 12px;
-  font-size: 13px;
-  color: var(--muted);
-}
-
-.pillMissing{
-  display:inline-flex;
-  width: 12px;
-  height: 12px;
-  border-radius: 3px;
-  background: var(--missing-bg);
-  border: 1px solid #f2d19a;
-}
-
-.greenDot{
-  display:inline-block;
-  width:10px;
-  height:10px;
-  border-radius:999px;
-  background:#22c55e;
-  box-shadow: 0 0 0 2px rgba(34,197,94,.15);
-}
-
-.dot{
-  display:inline-block;
-  width:10px;
-  height:10px;
-  border-radius:999px;
-  vertical-align:middle;
-}
-
-.dotGreen{
-  background:#22c55e;
-  box-shadow: 0 0 0 2px rgba(34,197,94,.18);
-}
-
-.dotOrange{
-  background:#f59e0b;
-  box-shadow: 0 0 0 2px rgba(245,158,11,.18);
-}
-
-.gridTable td,
-.gridTable th{
-  max-width: 0; /* important pour ellipsis dans un <table> */
-}
-
-/* ✅ tronquage propre dans la cellule */
-.td{
-  padding: 8px 10px;
-  border-bottom: 1px solid #f0f0f3;
-  white-space: nowrap;
-  max-width: 320px;
-
-  overflow: hidden;           /* ✅ */
-  text-overflow: ellipsis;    /* ✅ */
-}
-
-/* ✅ texte dans la cellule (pour garantir l’ellipsis) */
-.cellText{
-  display: block;             /* ✅ */
-  overflow: hidden;           /* ✅ */
-  white-space: nowrap;        /* ✅ */
-  text-overflow: ellipsis;    /* ✅ */
-}
-
-/* optionnel : feedback clic cellule */
-.clickableCell{
-  cursor: pointer;
-}
-.clickableCell:hover{
-  filter: brightness(0.98);
-}
-
-.td{
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.cellText{
-  display:block;
-  overflow:hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.cellText{
-  display:inline-block;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
+/* Cells */
+.td {
+  padding: 7px 12px;
+  border-bottom: 1px solid #f1f5f9;
+  border-right: 1px solid #f8fafc;
+  color: var(--ink);
   vertical-align: middle;
+  max-width: 220px;
 }
-.td{
-  overflow: hidden; /* important */
+.td:last-child { border-right: none; }
+
+/* Row variants */
+.rowAlt .td        { background: #fafbfc; }
+.rowAlt .frozen    { background: #fafbfc; }
+
+tr:hover .td       { background: #f0f7ff !important; }
+tr:hover .frozen   { background: #e8f1ff !important; }
+
+/* Missing / clickable */
+.missingCell {
+  background: #fff7ed !important;
+  border-color: #fed7aa !important;
 }
-.clickable{
-  cursor: pointer;
-}
-.clickable {
-  cursor: pointer;
+.clickable { cursor: pointer; }
+.clickable:hover {
+  background: #fef9c3 !important;
+  border-color: #fde047 !important;
 }
 
-.cellText{
-  display: inline-block;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  vertical-align: bottom;
-}
+/* Cell text */
+.empty    { color: var(--inkFaint); font-style: italic; }
+.cellText { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-.closeBtn{
-  padding: 8px 10px;
-  border-radius: 10px;
+/* Close button */
+.closeBtn {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: var(--r-md);
   border: 1px solid var(--border);
-  background: white;
-  cursor: pointer;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 11px;
   font-weight: 700;
-}
-
-.closeBtn:hover{
-  border-color: #111827;
-}
-
-.closeBtn.disabled{
-  opacity: .55;
-  cursor: not-allowed;
-}
-
-.cellText{
-  display:block;
-  overflow:hidden;
-  text-overflow:ellipsis;
-  white-space:nowrap;
-  max-width: 100%;
-}
-
-.clickable{
   cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.1s, border-color 0.1s;
 }
-
-.closeBtn{
-  padding: 8px 10px;
-  border-radius: 10px;
-  border: 1px solid var(--border);
-  background: white;
-  cursor: pointer;
+.closeBtn:hover:not(.disabled) {
+  background: var(--redBg);
+  border-color: var(--red);
+  color: var(--red);
 }
-
-.closeBtn.disabled{
-  opacity: .55;
+.closeBtn.disabled {
+  opacity: 0.38;
   cursor: not-allowed;
+  background: var(--surfaceAlt);
 }

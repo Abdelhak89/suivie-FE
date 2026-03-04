@@ -1,16 +1,12 @@
-// frontend/src/components/StatCard.jsx
-export default function StatCard({ label, value, sub }) {
+// src/components/StatCard.jsx
+import "../styles/app.css";
+
+export default function StatCard({ label, value, sub, accent }) {
   return (
-    <div style={{
-      border: "1px solid #e5e7eb",
-      borderRadius: 16,
-      padding: 14,
-      background: "white",
-      boxShadow: "0 1px 2px rgba(0,0,0,0.04)"
-    }}>
-      <div style={{ color: "#6b7280", fontSize: 12 }}>{label}</div>
-      <div style={{ fontSize: 28, fontWeight: 800, marginTop: 4 }}>{value}</div>
-      {sub ? <div style={{ color: "#6b7280", fontSize: 12, marginTop: 2 }}>{sub}</div> : null}
+    <div className="statCard" style={accent ? { borderTopColor: accent, borderTopWidth: 3 } : {}}>
+      <div className="statCard__label">{label}</div>
+      <div className="statCard__value" style={accent ? { color: accent } : {}}>{value}</div>
+      {sub && <div className="statCard__sub">{sub}</div>}
     </div>
   );
 }

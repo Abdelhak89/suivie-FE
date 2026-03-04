@@ -1,215 +1,117 @@
-// src/pages/AlerteQualitePage.jsx - VERSION ADAPTÉE
+// src/pages/AlerteQualitePage.jsx
 import { useEffect, useMemo, useState } from "react";
 import { getAllFE, getFEByNumero, exportAlerteQualite } from "../services/feApi.js";
 import "../styles/app.css";
 
-function getDescFromFe(fe) {
-  const data = fe?.data;
-  if (!data || typeof data !== "object") return "";
-  return (
-    data["Details de l'anomalie"] ||
-    data["Détails de l'anomalie"] ||
-    data["Detail de l'anomalie"] ||
-    data["Détail de l'anomalie"] ||
-    ""
-  );
-}
-
 function toIsoShort(v) {
   if (!v) return "";
-  const s = String(v).trim();
-  const iso = s.slice(0, 10);
-  if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) return iso;
+  const s = String(v).trim().slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const d = new Date(v);
+  return isNaN(d) ? s : d.toISOString().slice(0, 10);
+}
 
-  const d = new Date(s);
-  if (!isNaN(d.getTime())) return d.toISOString().slice(0, 10);
-  return s;
+function getDesc(fe) {
+  const d = fe?.data;
+  if (!d || typeof d !== "object") return "";
+  return d["Details de l'anomalie"] || d["Détails de l'anomalie"] || d["Detail de l'anomalie"] || "";
 }
 
 export default function AlerteQualitePage() {
-  const [annee, setAnnee] = useState("2026");
-  const [q, setQ] = useState("");
+  const [annee,   setAnnee]   = useState("2026");
+  const [q,       setQ]       = useState("");
   const [loading, setLoading] = useState(false);
-
-  const [items, setItems] = useState([]);
+  const [items,   setItems]   = useState([]);
   const [selectedNumero, setSelectedNumero] = useState("");
-  const [selectedFe, setSelectedFe] = useState(null);
-
-  const [exportLoading, setExportLoading] = useState(false);
-  const [exportSuccess, setExportSuccess] = useState(false);
+  const [selectedFe,     setSelectedFe]     = useState(null);
+  const [busy,    setBusy]    = useState(false);
+  const [ok,      setOk]      = useState(false);
 
   useEffect(() => {
     const ctrl = new AbortController();
-    
-    const loadData = async () => {
-      setLoading(true);
-      try {
-        const result = await getAllFE({
-          annee: annee || null,
-          limit: 200,
-          offset: 0
-        });
-        
-        if (!ctrl.signal.aborted) {
-          setItems(result.items || []);
-        }
-      } catch (error) {
-        if (!ctrl.signal.aborted) {
-          console.error("Erreur chargement FE:", error);
-        }
-      } finally {
-        if (!ctrl.signal.aborted) {
-          setLoading(false);
-        }
-      }
-    };
-    
-    loadData();
-    
+    setLoading(true);
+    getAllFE({ annee: annee || null, limit: 200 })
+      .then((r) => { if (!ctrl.signal.aborted) setItems(r.items || []); })
+      .catch(() => {})
+      .finally(() => { if (!ctrl.signal.aborted) setLoading(false); });
     return () => ctrl.abort();
-  }, [annee, q]);
+  }, [annee]);
 
-  const filteredItems = useMemo(() => {
+  const filtered = useMemo(() => {
     if (!q.trim()) return items;
-    const search = q.toLowerCase();
-    return items.filter(fe => 
-      fe.numero_fe?.toLowerCase().includes(search) ||
-      fe.code_article?.toLowerCase().includes(search) ||
-      fe.designation?.toLowerCase().includes(search) ||
-      fe.code_lancement?.toLowerCase().includes(search)
+    const s = q.toLowerCase();
+    return items.filter((fe) =>
+      [fe.numero_fe, fe.code_article, fe.designation, fe.code_lancement]
+        .some((v) => v?.toLowerCase().includes(s))
     );
   }, [items, q]);
 
-  const options = useMemo(
-    () => filteredItems.filter(x => x?.numero_fe).map(x => ({ 
-      numero_fe: x.numero_fe,
-      designation: x.designation || ""
-    })),
-    [filteredItems]
-  );
-
-  const loadFe = async (numeroFE) => {
-    if (!numeroFE) return;
+  const loadFe = async (num) => {
+    if (!num) return;
     setSelectedFe({ loading: true });
-    setExportSuccess(false);
-    
-    try {
-      const fe = await getFEByNumero(numeroFE);
-      setSelectedFe(fe);
-    } catch (error) {
-      setSelectedFe({ error: "Impossible de charger la FE" });
-    }
-  };
-
-  const onSelectChange = (val) => {
-    setSelectedNumero(val);
-    loadFe(val);
+    setOk(false);
+    try { setSelectedFe(await getFEByNumero(num)); }
+    catch { setSelectedFe({ error: "Impossible de charger" }); }
   };
 
   const handleExport = async () => {
     if (!selectedNumero) return;
-    
-    setExportLoading(true);
-    setExportSuccess(false);
-    
+    setBusy(true); setOk(false);
     try {
-      const result = await exportAlerteQualite(selectedNumero);
-      
-      setExportSuccess(true);
-      alert(`Export créé avec succès !\n\nFichier : ${result.filename}\nChemin : ${result.path}`);
-      
-      // Auto-reset après 3 secondes
-      setTimeout(() => setExportSuccess(false), 3000);
-    } catch (error) {
-      console.error("Erreur export:", error);
-      alert(`Erreur lors de l'export : ${error.message}`);
-    } finally {
-      setExportLoading(false);
-    }
+      const r = await exportAlerteQualite(selectedNumero);
+      setOk(true);
+      alert(`Export créé !\n${r.filename}\n${r.path}`);
+      setTimeout(() => setOk(false), 3000);
+    } catch (e) { alert(`Erreur : ${e.message}`); }
+    finally { setBusy(false); }
   };
-
-  const descPreview = selectedFe?.loading || selectedFe?.error ? "" : getDescFromFe(selectedFe);
 
   return (
     <div className="container">
       <div className="pageHead">
-        <div>
-          <h2 className="h1">Alerte qualité</h2>
-          <div className="sub">{loading ? "chargement..." : `${options.length} FE`}</div>
-        </div>
+        <div><h2 className="h1">Alerte Qualité</h2><div className="sub">{loading ? "Chargement…" : `${filtered.length} FE`}</div></div>
         <span className="badge badgeBlue">Export XLSX</span>
       </div>
 
       <div className="toolbar">
         <div className="field">
-          <span className="label">Année :</span>
+          <span className="label">Année</span>
           <select className="select" value={annee} onChange={(e) => setAnnee(e.target.value)}>
-            <option value="2026">2026</option>
-            <option value="2025">2025</option>
-            <option value="2024">2024</option>
-            <option value="">Toutes</option>
+            <option value="2026">2026</option><option value="2025">2025</option><option value="2024">2024</option><option value="">Toutes</option>
           </select>
         </div>
-
-        <input
-          className="input"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Rechercher (N° FE / REF / désignation / lancement...)"
-          style={{ maxWidth: 520 }}
-        />
-
-        <select 
-          className="selectWide select" 
-          value={selectedNumero} 
-          onChange={(e) => onSelectChange(e.target.value)}
-        >
+        <input className="input" style={{ flex: 1 }} value={q} onChange={(e) => setQ(e.target.value)} placeholder="N° FE / REF / désignation / lancement…" />
+        <select className="selectWide" value={selectedNumero} onChange={(e) => { setSelectedNumero(e.target.value); loadFe(e.target.value); }}>
           <option value="">— Choisir une FE —</option>
-          {options.map((o) => (
-            <option key={o.numero_fe} value={o.numero_fe}>
-              {o.numero_fe} {o.designation ? `— ${o.designation.slice(0, 40)}` : ""}
-            </option>
+          {filtered.filter((x) => x?.numero_fe).map((o) => (
+            <option key={o.numero_fe} value={o.numero_fe}>{o.numero_fe}{o.designation ? ` — ${o.designation.slice(0, 40)}` : ""}</option>
           ))}
         </select>
-
-        <button 
-          className="btn btnDark" 
-          onClick={handleExport} 
-          disabled={!selectedNumero || exportLoading}
-        >
-          {exportLoading ? "Génération..." : exportSuccess ? "✅ Généré" : "Générer .xlsx"}
+        <button className="btn btnDark" onClick={handleExport} disabled={!selectedNumero || busy}>
+          {busy ? "Génération…" : ok ? "✅ Généré" : "Générer .xlsx"}
         </button>
       </div>
 
-      <div className="panel" style={{ marginTop: 12 }}>
-        {!selectedNumero ? (
-          <div className="sub">Choisis une FE pour afficher l'aperçu.</div>
-        ) : selectedFe?.loading ? (
-          <div className="sub">Chargement FE…</div>
-        ) : selectedFe?.error ? (
-          <div style={{ color: "#b91c1c", fontWeight: 800 }}>{selectedFe.error}</div>
-        ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "160px 1fr", gap: 10 }}>
-            <div style={{ fontWeight: 900 }}>N° FE</div>
-            <div>{selectedFe?.numero_fe || "—"}</div>
-            
-            <div style={{ fontWeight: 900 }}>REF</div>
-            <div>{selectedFe?.code_article || "—"}</div>
-            
-            <div style={{ fontWeight: 900 }}>Désignation</div>
-            <div>{selectedFe?.designation || "—"}</div>
-            
-            <div style={{ fontWeight: 900 }}>Lancement</div>
-            <div>{selectedFe?.code_lancement || "—"}</div>
-            
-            <div style={{ fontWeight: 900 }}>Date</div>
-            <div>{toIsoShort(selectedFe?.date_creation || "") || "—"}</div>
-            
-            <div style={{ fontWeight: 900 }}>Lieu détection</div>
-            <div>{selectedFe?.lieu_detection || "—"}</div>
-            
-            <div style={{ fontWeight: 900 }}>Description</div>
-            <div style={{ whiteSpace: "pre-wrap" }}>{descPreview || "—"}</div>
+      <div className="panel">
+        {!selectedNumero ? <div className="sub">Choisis une FE pour afficher l'aperçu.</div>
+        : selectedFe?.loading ? <div className="sub">Chargement…</div>
+        : selectedFe?.error  ? <div style={{ color: "var(--red)", fontWeight: 700 }}>{selectedFe.error}</div>
+        : (
+          <div className="kv">
+            {[
+              ["N° FE",        selectedFe?.numero_fe],
+              ["REF",          selectedFe?.code_article],
+              ["Désignation",  selectedFe?.designation],
+              ["Lancement",    selectedFe?.code_lancement],
+              ["Date",         toIsoShort(selectedFe?.date_creation)],
+              ["Lieu détection",selectedFe?.lieu_detection],
+              ["Description",  getDesc(selectedFe)],
+            ].map(([k, v]) => (
+              <div key={k} className="kvRow">
+                <div className="kvKey">{k}</div>
+                <div className="kvVal" style={{ whiteSpace: "pre-wrap" }}>{v || "—"}</div>
+              </div>
+            ))}
           </div>
         )}
       </div>

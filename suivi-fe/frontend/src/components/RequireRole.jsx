@@ -1,4 +1,4 @@
-// frontend/src/components/RequireRole.jsx
+// src/components/RequireRole.jsx
 import { Navigate } from "react-router-dom";
 import { getSession } from "../auth/auth";
 

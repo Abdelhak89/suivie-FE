@@ -1,196 +1,98 @@
-// src/pages/DerogationPage.jsx - VERSION ADAPTÉE
+// src/pages/DerogationPage.jsx
 import { useEffect, useMemo, useState } from "react";
 import { getAllFE, getFEByNumero, exportDerogation } from "../services/feApi.js";
 import "../styles/app.css";
 
 export default function DerogationPage() {
-  const [annee, setAnnee] = useState("2026");
-  const [q, setQ] = useState("");
+  const [annee,   setAnnee]   = useState("2026");
+  const [q,       setQ]       = useState("");
   const [loading, setLoading] = useState(false);
-
-  const [items, setItems] = useState([]);
+  const [items,   setItems]   = useState([]);
   const [selectedNumero, setSelectedNumero] = useState("");
-  const [selectedFe, setSelectedFe] = useState(null);
-
-  const [exportLoading, setExportLoading] = useState(false);
-  const [exportSuccess, setExportSuccess] = useState(false);
+  const [selectedFe,     setSelectedFe]     = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [ok,   setOk]   = useState(false);
 
   useEffect(() => {
     const ctrl = new AbortController();
-    
-    const loadData = async () => {
-      setLoading(true);
-      try {
-        const result = await getAllFE({
-          annee: annee || null,
-          limit: 200
-        });
-        
-        if (!ctrl.signal.aborted) {
-          setItems(result.items || []);
-        }
-      } catch (error) {
-        if (!ctrl.signal.aborted) {
-          console.error("Erreur chargement FE:", error);
-        }
-      } finally {
-        if (!ctrl.signal.aborted) {
-          setLoading(false);
-        }
-      }
-    };
-    
-    loadData();
-    
+    setLoading(true);
+    getAllFE({ annee: annee || null, limit: 200 })
+      .then((r) => { if (!ctrl.signal.aborted) setItems(r.items || []); })
+      .catch(() => {})
+      .finally(() => { if (!ctrl.signal.aborted) setLoading(false); });
     return () => ctrl.abort();
-  }, [annee, q]);
+  }, [annee]);
 
-  const filteredItems = useMemo(() => {
+  const filtered = useMemo(() => {
     if (!q.trim()) return items;
-    const search = q.toLowerCase();
-    return items.filter(fe => 
-      fe.numero_fe?.toLowerCase().includes(search) ||
-      fe.code_article?.toLowerCase().includes(search) ||
-      fe.designation?.toLowerCase().includes(search) ||
-      fe.code_lancement?.toLowerCase().includes(search)
-    );
+    const s = q.toLowerCase();
+    return items.filter((fe) => [fe.numero_fe, fe.code_article, fe.designation, fe.code_lancement].some((v) => v?.toLowerCase().includes(s)));
   }, [items, q]);
 
-  const options = useMemo(() => {
-    return filteredItems
-      .filter((x) => x?.numero_fe)
-      .map((x) => ({
-        numero_fe: x.numero_fe,
-        desc: (x?.data && (x.data["Details de l'anomalie"] || x.data["Détails de l'anomalie"])) || x.designation || "",
-      }));
-  }, [filteredItems]);
-
-  const loadFe = async (numeroFE) => {
-    if (!numeroFE) return;
-    setSelectedFe({ loading: true });
-    setExportSuccess(false);
-    
-    try {
-      const fe = await getFEByNumero(numeroFE);
-      setSelectedFe(fe);
-    } catch (error) {
-      setSelectedFe({ error: "Impossible de charger la FE" });
-    }
+  const loadFe = async (num) => {
+    if (!num) return;
+    setSelectedFe({ loading: true }); setOk(false);
+    try { setSelectedFe(await getFEByNumero(num)); }
+    catch { setSelectedFe({ error: "Impossible de charger" }); }
   };
 
-  const onSelectChange = (val) => {
-    setSelectedNumero(val);
-    loadFe(val);
-  };
-
-  const openXlsx = async () => {
+  const handleExport = async () => {
     if (!selectedNumero) return;
-    
-    setExportLoading(true);
-    setExportSuccess(false);
-    
+    setBusy(true); setOk(false);
     try {
-      const result = await exportDerogation(selectedNumero);
-      
-      setExportSuccess(true);
-      alert(`Export créé avec succès !\n\nFichier : ${result.filename}\nChemin : ${result.path}`);
-      
-      // Auto-reset après 3 secondes
-      setTimeout(() => setExportSuccess(false), 3000);
-    } catch (error) {
-      console.error("Erreur export:", error);
-      alert(`Erreur lors de l'export : ${error.message}`);
-    } finally {
-      setExportLoading(false);
-    }
+      const r = await exportDerogation(selectedNumero);
+      setOk(true);
+      alert(`Export créé !\n${r.filename}\n${r.path}`);
+      setTimeout(() => setOk(false), 3000);
+    } catch (e) { alert(`Erreur : ${e.message}`); }
+    finally { setBusy(false); }
   };
 
   return (
     <div className="container">
       <div className="pageHead">
-        <div>
-          <h2 className="h1">Dérogation</h2>
-          <div className="sub">{loading ? "Chargement…" : `${options.length} FE`}</div>
-        </div>
+        <div><h2 className="h1">Dérogation</h2><div className="sub">{loading ? "Chargement…" : `${filtered.length} FE`}</div></div>
         <span className="badge badgeBlue">Export XLSX</span>
       </div>
 
-      <div className="panel">
-        <div className="toolbar">
-          <div className="field">
-            <span className="label">Année</span>
-            <select className="select" value={annee} onChange={(e) => setAnnee(e.target.value)}>
-              <option value="2026">2026</option>
-              <option value="2025">2025</option>
-              <option value="2024">2024</option>
-              <option value="">Toutes</option>
-            </select>
-          </div>
-
-          <input
-            className="input"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Rechercher (N° FE / REF / désignation / lancement...)"
-            style={{ minWidth: 320 }}
-          />
-
-          <select 
-            className="selectWide" 
-            value={selectedNumero} 
-            onChange={(e) => onSelectChange(e.target.value)}
-          >
-            <option value="">— Choisir une FE —</option>
-            {options.map((o) => (
-              <option key={o.numero_fe} value={o.numero_fe}>
-                {o.numero_fe}{o.desc ? ` — ${o.desc.slice(0, 40)}${o.desc.length > 40 ? "…" : ""}` : ""}
-              </option>
-            ))}
+      <div className="toolbar">
+        <div className="field">
+          <span className="label">Année</span>
+          <select className="select" value={annee} onChange={(e) => setAnnee(e.target.value)}>
+            <option value="2026">2026</option><option value="2025">2025</option><option value="2024">2024</option><option value="">Toutes</option>
           </select>
-
-          <button 
-            className="btn btnDark" 
-            onClick={openXlsx} 
-            disabled={!selectedNumero || exportLoading}
-          >
-            {exportLoading ? "Génération..." : exportSuccess ? "✅ Généré" : "Générer .xlsx"}
-          </button>
         </div>
+        <input className="input" style={{ flex: 1 }} value={q} onChange={(e) => setQ(e.target.value)} placeholder="N° FE / REF / désignation / lancement…" />
+        <select className="selectWide" value={selectedNumero} onChange={(e) => { setSelectedNumero(e.target.value); loadFe(e.target.value); }}>
+          <option value="">— Choisir une FE —</option>
+          {filtered.filter((x) => x?.numero_fe).map((o) => {
+            const desc = o?.data?.["Details de l'anomalie"] || o?.data?.["Détails de l'anomalie"] || o.designation || "";
+            return <option key={o.numero_fe} value={o.numero_fe}>{o.numero_fe}{desc ? ` — ${desc.slice(0,40)}` : ""}</option>;
+          })}
+        </select>
+        <button className="btn btnDark" onClick={handleExport} disabled={!selectedNumero || busy}>
+          {busy ? "Génération…" : ok ? "✅ Généré" : "Générer .xlsx"}
+        </button>
       </div>
 
-      <div className="panel" style={{ marginTop: 12 }}>
-        {!selectedNumero ? (
-          <div className="sub">Choisis une FE pour afficher l'aperçu.</div>
-        ) : selectedFe?.loading ? (
-          <div className="sub">Chargement FE…</div>
-        ) : selectedFe?.error ? (
-          <div className="sub" style={{ color: "#b91c1c" }}>{selectedFe.error}</div>
-        ) : (
-          <div className="tableWrap">
-            <table className="table">
-              <tbody>
-                <tr>
-                  <td className="th">N° FE</td>
-                  <td className="td">{selectedFe?.numero_fe || "—"}</td>
-                </tr>
-                <tr>
-                  <td className="th">REF</td>
-                  <td className="td">{selectedFe?.code_article || "—"}</td>
-                </tr>
-                <tr>
-                  <td className="th">Désignation</td>
-                  <td className="td">{selectedFe?.designation || "—"}</td>
-                </tr>
-                <tr>
-                  <td className="th">Lancement</td>
-                  <td className="td">{selectedFe?.code_lancement || "—"}</td>
-                </tr>
-                <tr>
-                  <td className="th">Date (ISO)</td>
-                  <td className="td">{selectedFe?.date_creation || "—"}</td>
-                </tr>
-              </tbody>
-            </table>
+      <div className="panel">
+        {!selectedNumero ? <div className="sub">Choisis une FE pour afficher l'aperçu.</div>
+        : selectedFe?.loading ? <div className="sub">Chargement…</div>
+        : selectedFe?.error  ? <div style={{ color: "var(--red)", fontWeight: 700 }}>{selectedFe.error}</div>
+        : (
+          <div className="kv">
+            {[
+              ["N° FE",      selectedFe?.numero_fe],
+              ["REF",        selectedFe?.code_article],
+              ["Désignation",selectedFe?.designation],
+              ["Lancement",  selectedFe?.code_lancement],
+              ["Date (ISO)", selectedFe?.date_creation],
+            ].map(([k, v]) => (
+              <div key={k} className="kvRow">
+                <div className="kvKey">{k}</div>
+                <div className="kvVal">{v || "—"}</div>
+              </div>
+            ))}
           </div>
         )}
       </div>

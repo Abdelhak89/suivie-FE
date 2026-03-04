@@ -1,29 +1,10 @@
 // ===============================
-// MENU (Sidebar)
-// ===============================
-export const MENU = [
-  { key: "dashboard", label: "Accueil", path: "/dashboard" },
-  { key: "manager", label: "Manager", path: "/manager" },
-
-  { key: "interne-serie", label: "Interne série", path: "/interne-serie" },
-  { key: "interne-fai", label: "Interne FAI", path: "/interne-fai" },
-  { key: "client", label: "Client", path: "/client" },
-  { key: "fournisseur", label: "Fournisseur", path: "/fournisseur" },
-  { key: "derogation", label: "Dérogation", path: "/derogation" },
-  { key: "kpi", label: "KPI", path: "/kpi" },
-  { key: "alerte-qualite", label: "Alerte qualité", path: "/alerte-qualite" },
-  {
-    key: "clinique-qualite",
-    label: "Clinique qualité",
-    path: "/clinique-qualite",
-  },
-];
-// ===============================
-// CONFIG “tableau à remplir”
+// CONFIG "tableau à remplir" (VERSION MODIFIÉE)
 // ===============================
 export const PAGES = {
   "interne-serie": {
     title: "Interne série",
+    filters: { origine: "CINT" },
     groups: [
       { label: "Suivi", columns: ["N° FE", "QUAND", "Statut"] },
       {
@@ -31,38 +12,52 @@ export const PAGES = {
         columns: ["REF", "Désignation", "Lancement", "Description"],
       },
       { label: "Combien", columns: ["Qté NC", "Qté Produite"] },
-      { label: "Où", columns: ["Type NC", "Détection"] }, // ✅ Détection = Lieu Detection (Excel)
+      { label: "Où", columns: ["Type NC", "Détection"] },
+      {
+        label: "Responsabilités",
+        columns: [
+          "Animateur",        // ✅ AJOUTÉ : Menu déroulant Animateur Qualité
+          "Support",          // ✅ AJOUTÉ : Menu déroulant Personne Support
+        ],
+      },
       {
         label: "Comment",
         columns: [
           "D2R",
-          "Analyse", // ✅ nouvelle colonne (popup 6M)
-          "Ilot Générateur", // ✅ = ILOT GENERATEUR (Excel)
-          "Plan d'action", // ✅ pastille 🟠/🟢 + popup
-          "Mesure efficacité",
+          "Analyse",
+          "Ilot Générateur",
+          "Plan d'action",
+          "Mesure Eff.",      // ✅ MODIFIÉ : Checkbox (au lieu de "Mesure efficacité")
         ],
       },
-      // exemple : Interne série
-      
     ],
   },
+  
   "interne-fai": {
     title: "Interne FAI",
+    filters: { origine: "CINT" },
     groups: [
-      { label: "Suivi", columns: ["N° FE", "QUAND", "Statut", "Animateur"] },
+      { label: "Suivi", columns: ["N° FE", "QUAND", "Statut"] },
       {
         label: "Quoi",
         columns: ["REF", "Désignation", "Lancement", "Description"],
       },
       { label: "Combien", columns: ["Qté NC", "Qté Lct", "Qté Produite"] },
       { label: "Où", columns: ["Type NC", "Lieu", "Détection"] },
-      { label: "Qui", columns: ["Pilote QSE", "Ilot Générateur"] },
+      {
+        label: "Responsabilités",
+        columns: [
+          "Animateur",        // ✅ AJOUTÉ
+          "Support",          // ✅ AJOUTÉ
+          "Ilot Générateur"
+        ],
+      },
       {
         label: "Comment",
         columns: [
           "Analyse",
           "Plan d'action",
-          "Mesure efficacité",
+          "Mesure Eff.",      // ✅ MODIFIÉ : Checkbox
           "Commentaires",
         ],
       },
@@ -71,6 +66,7 @@ export const PAGES = {
 
   client: {
     title: "Client",
+    filters: { origine: "RCLI" },
     groups: [
       {
         label: "Suivi",
@@ -89,7 +85,14 @@ export const PAGES = {
       },
       { label: "Combien", columns: ["Qté NC", "Qté Lct"] },
       { label: "Où", columns: ["Type NC", "Lieu"] },
-      { label: "Qui", columns: ["Pilote NC"] },
+      {
+        label: "Responsabilités",
+        columns: [
+          "Pilote NC",
+          "Animateur",        // ✅ AJOUTÉ
+          "Support",          // ✅ AJOUTÉ
+        ],
+      },
       {
         label: "Traitement",
         columns: [
@@ -99,7 +102,7 @@ export const PAGES = {
           "Causes",
           "Actions correctives",
           "Actions préventives",
-          "Mesure efficacité",
+          "Mesure Eff.",      // ✅ MODIFIÉ : Checkbox
           "Clôture",
         ],
       },
@@ -108,15 +111,23 @@ export const PAGES = {
 
   fournisseur: {
     title: "Fournisseur",
+    filters: { origine: "DFOU" },
     groups: [
       { label: "Suivi", columns: ["N° FE", "QUAND", "Statut"] },
       {
         label: "Quoi",
-        columns: ["REF", "Désignation", "Lct", "Commande", "Description"],
+        columns: ["REF", "Désignation", "Lancement", "Commande", "Description"],
       },
       { label: "Combien", columns: ["Qté NC", "Qté reçu"] },
       { label: "Où", columns: ["Lieu", "Fournisseur"] },
-      { label: "Qui", columns: ["Pilote NC"] },
+      {
+        label: "Responsabilités",
+        columns: [
+          "Pilote NC",
+          "Animateur",        // ✅ AJOUTÉ
+          "Support",          // ✅ AJOUTÉ
+        ],
+      },
       {
         label: "Réclamation",
         columns: [

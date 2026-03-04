@@ -1,9 +1,14 @@
+// src/pages/PlaceholderPage.jsx
+import "../styles/app.css";
+
 export default function PlaceholderPage({ title }) {
   return (
-    <div>
-      <h2 style={{ margin: 0 }}>{title}</h2>
-      <div style={{ marginTop: 10, color: "#666" }}>
-        Page en attente (on la remplira après).
+    <div className="container">
+      <div className="pageHead">
+        <h2 className="h1">{title}</h2>
+      </div>
+      <div className="panel">
+        <div className="sub">Page en cours de développement.</div>
       </div>
     </div>
   );

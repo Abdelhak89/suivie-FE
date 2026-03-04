@@ -1,298 +1,94 @@
-// src/pages/DashboardPage.jsx - VERSION ADAPTÉE
+// src/pages/DashboardPage.jsx
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { getStats } from "../services/feApi.js";
+import StatCard from "../components/StatCard.jsx";
 import "../styles/app.css";
 
-function StatCard({ title, value, subtitle, color = "#111827" }) {
-  return (
-    <div style={{
-      background: "white",
-      border: "1px solid #e5e7eb",
-      borderRadius: 16,
-      padding: 16,
-      boxShadow: "0 4px 12px rgba(0,0,0,0.04)"
-    }}>
-      <div style={{ fontSize: 12, color: "#6b7280", fontWeight: 700, marginBottom: 8 }}>
-        {title}
-      </div>
-      <div style={{ fontSize: 32, fontWeight: 900, color, marginBottom: 4 }}>
-        {value}
-      </div>
-      {subtitle && (
-        <div style={{ fontSize: 12, color: "#9ca3af" }}>
-          {subtitle}
-        </div>
-      )}
-    </div>
-  );
-}
+const NAV_ITEMS = [
+  { to: "/interne-serie",   title: "Interne Série",    sub: "Non-conformités internes série" },
+  { to: "/interne-fai",     title: "Interne FAI",      sub: "Fiches DVI / FAI" },
+  { to: "/client",          title: "Client",           sub: "Réclamations et NC clients" },
+  { to: "/fournisseur",     title: "Fournisseur",      sub: "NC fournisseurs" },
+  { to: "/kpi",             title: "📊 KPI",           sub: "Pareto, tendances, drilldown", accent: true },
+  { to: "/alerte-qualite",  title: "Alerte Qualité",   sub: "Export XLSX" },
+  { to: "/clinique-qualite",title: "Clinique Qualité", sub: "A3 DMAIC — PPT" },
+  { to: "/derogation",      title: "Dérogation",       sub: "Export XLSX dérogation" },
+];
 
 export default function DashboardPage() {
-  const [stats, setStats] = useState(null);
+  const [stats,   setStats]   = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const loadStats = async () => {
-      setLoading(true);
-      try {
-        const data = await getStats();
-        setStats(data);
-      } catch (error) {
-        console.error("Erreur chargement stats:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadStats();
+    getStats()
+      .then(setStats)
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, []);
 
-  if (loading) {
-    return (
-      <div style={{ padding: 16 }}>
-        <h2>Dashboard</h2>
-        <div style={{ color: "#6b7280", marginTop: 12 }}>Chargement des statistiques...</div>
-      </div>
-    );
-  }
+  const g        = stats?.global   || {};
+  const byType   = stats?.by_type  || [];
+  const byClient = stats?.by_client|| [];
 
-  const global = stats?.global || {};
-  const byType = stats?.by_type || [];
-  const byClient = stats?.by_client || [];
+  const pct = (n, t) => t ? Math.round((n / t) * 100) : 0;
 
   return (
-    <div style={{ padding: 16 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 20 }}>
+    <div className="container">
+      <div className="pageHead">
         <div>
-          <h2 style={{ margin: 0 }}>Dashboard Qualité</h2>
-          <div style={{ color: "#6b7280", marginTop: 6 }}>
-            Vue d'ensemble des Fiches Événements
-          </div>
+          <h2 className="h1">Dashboard Qualité</h2>
+          <div className="sub">Vue d'ensemble des Fiches Événements</div>
         </div>
+        {loading && <span className="badge badgeGray">Chargement…</span>}
       </div>
 
-      {/* KPI Cards */}
-      <div style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
-        gap: 16,
-        marginBottom: 24
-      }}>
-        <StatCard
-          title="Total FE"
-          value={global.total?.toLocaleString("fr-FR") || "0"}
-          subtitle="Toutes les fiches événements"
-          color="#111827"
-        />
-        
-        <StatCard
-          title="FE Traitées"
-          value={global.traitees?.toLocaleString("fr-FR") || "0"}
-          subtitle={`${global.total ? Math.round((global.traitees / global.total) * 100) : 0}% du total`}
-          color="#16a34a"
-        />
-        
-        <StatCard
-          title="FE En cours"
-          value={global.en_cours?.toLocaleString("fr-FR") || "0"}
-          subtitle={`${global.total ? Math.round((global.en_cours / global.total) * 100) : 0}% du total`}
-          color="#ea580c"
-        />
-        
-        <StatCard
-          title="Articles distincts"
-          value={global.articles_distincts?.toLocaleString("fr-FR") || "0"}
-          subtitle="Références uniques"
-          color="#2563eb"
-        />
+      {/* KPI */}
+      <div className="grid4" style={{ marginBottom: 20 }}>
+        <StatCard label="Total FE"          value={g.total?.toLocaleString("fr-FR")           || "—"} sub="Toutes les fiches événements" />
+        <StatCard label="FE Traitées"       value={g.traitees?.toLocaleString("fr-FR")        || "—"} sub={`${pct(g.traitees, g.total)}% du total`}   accent="var(--green)" />
+        <StatCard label="FE En cours"       value={g.en_cours?.toLocaleString("fr-FR")        || "—"} sub={`${pct(g.en_cours, g.total)}% du total`}   accent="var(--amber)" />
+        <StatCard label="Articles distincts"value={g.articles_distincts?.toLocaleString("fr-FR")||"—"} sub="Références uniques"                        accent="var(--blue)" />
       </div>
 
-      {/* Navigation rapide */}
-      <div style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-        gap: 16,
-        marginBottom: 24
-      }}>
-        <Link
-          to="/interne-serie"
-          style={{
-            textDecoration: "none",
-            color: "inherit",
-            background: "white",
-            border: "1px solid #e5e7eb",
-            borderRadius: 16,
-            padding: 16,
-            boxShadow: "0 4px 12px rgba(0,0,0,0.04)",
-            cursor: "pointer",
-            transition: "all 0.2s"
-          }}
-        >
-          <div style={{ fontWeight: 900, fontSize: 16, marginBottom: 8 }}>Interne Série</div>
-          <div style={{ color: "#6b7280", fontSize: 13 }}>
-            Gérer les non-conformités internes série
-          </div>
-        </Link>
-
-        <Link
-          to="/client"
-          style={{
-            textDecoration: "none",
-            color: "inherit",
-            background: "white",
-            border: "1px solid #e5e7eb",
-            borderRadius: 16,
-            padding: 16,
-            boxShadow: "0 4px 12px rgba(0,0,0,0.04)",
-            cursor: "pointer"
-          }}
-        >
-          <div style={{ fontWeight: 900, fontSize: 16, marginBottom: 8 }}>Client</div>
-          <div style={{ color: "#6b7280", fontSize: 13 }}>
-            Réclamations et NC clients
-          </div>
-        </Link>
-
-        <Link
-          to="/fournisseur"
-          style={{
-            textDecoration: "none",
-            color: "inherit",
-            background: "white",
-            border: "1px solid #e5e7eb",
-            borderRadius: 16,
-            padding: 16,
-            boxShadow: "0 4px 12px rgba(0,0,0,0.04)",
-            cursor: "pointer"
-          }}
-        >
-          <div style={{ fontWeight: 900, fontSize: 16, marginBottom: 8 }}>Fournisseur</div>
-          <div style={{ color: "#6b7280", fontSize: 13 }}>
-            NC fournisseurs et réclamations
-          </div>
-        </Link>
-
-        <Link
-          to="/kpi"
-          style={{
-            textDecoration: "none",
-            color: "inherit",
-            background: "white",
-            border: "1px solid #2563eb",
-            borderRadius: 16,
-            padding: 16,
-            boxShadow: "0 4px 12px rgba(0,0,0,0.04)",
-            cursor: "pointer"
-          }}
-        >
-          <div style={{ fontWeight: 900, fontSize: 16, marginBottom: 8, color: "#2563eb" }}>
-            📊 KPI & Analyses
-          </div>
-          <div style={{ color: "#6b7280", fontSize: 13 }}>
-            Pareto, tendances, drilldown
-          </div>
-        </Link>
-
-        <Link
-          to="/alerte-qualite"
-          style={{
-            textDecoration: "none",
-            color: "inherit",
-            background: "white",
-            border: "1px solid #e5e7eb",
-            borderRadius: 16,
-            padding: 16,
-            boxShadow: "0 4px 12px rgba(0,0,0,0.04)",
-            cursor: "pointer"
-          }}
-        >
-          <div style={{ fontWeight: 900, fontSize: 16, marginBottom: 8 }}>Alerte Qualité</div>
-          <div style={{ color: "#6b7280", fontSize: 13 }}>
-            Générer exports XLSX
-          </div>
-        </Link>
-
-        <Link
-          to="/clinique-qualite"
-          style={{
-            textDecoration: "none",
-            color: "inherit",
-            background: "white",
-            border: "1px solid #e5e7eb",
-            borderRadius: 16,
-            padding: 16,
-            boxShadow: "0 4px 12px rgba(0,0,0,0.04)",
-            cursor: "pointer"
-          }}
-        >
-          <div style={{ fontWeight: 900, fontSize: 16, marginBottom: 8 }}>Clinique Qualité</div>
-          <div style={{ color: "#6b7280", fontSize: 13 }}>
-            A3 DMAIC - Générer PPT
-          </div>
-        </Link>
+      {/* Navigation */}
+      <div className="grid4" style={{ marginBottom: 20 }}>
+        {NAV_ITEMS.map(({ to, title, sub, accent }) => (
+          <Link
+            key={to}
+            to={to}
+            className="navCard"
+            style={accent ? { borderColor: "var(--primary)" } : {}}
+          >
+            <div className="navCard__title" style={accent ? { color: "var(--primary)" } : {}}>{title}</div>
+            <div className="navCard__sub">{sub}</div>
+          </Link>
+        ))}
       </div>
 
-      {/* Statistiques détaillées */}
-      <div style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
-        gap: 16
-      }}>
-        {/* Par type */}
+      {/* Stats détail */}
+      <div className="grid2">
         {byType.length > 0 && (
-          <div style={{
-            background: "white",
-            border: "1px solid #e5e7eb",
-            borderRadius: 16,
-            padding: 16
-          }}>
-            <div style={{ fontWeight: 900, marginBottom: 12 }}>FE par Type</div>
-            <div style={{ display: "grid", gap: 8 }}>
-              {byType.slice(0, 5).map((item) => (
-                <div
-                  key={item.type}
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    padding: "8px 0",
-                    borderBottom: "1px solid #f3f4f6"
-                  }}
-                >
-                  <span style={{ fontWeight: 600 }}>{item.type || "—"}</span>
-                  <span style={{ color: "#6b7280" }}>
-                    {item.count} FE
-                  </span>
+          <div className="panel">
+            <div className="panelTitle">FE par type</div>
+            <div className="kv">
+              {byType.slice(0, 6).map((item) => (
+                <div key={item.type} className="kvRow">
+                  <div className="kvKey">{item.type || "—"}</div>
+                  <div className="kvVal">{item.count} FE</div>
                 </div>
               ))}
             </div>
           </div>
         )}
-
-        {/* Par client */}
         {byClient.length > 0 && (
-          <div style={{
-            background: "white",
-            border: "1px solid #e5e7eb",
-            borderRadius: 16,
-            padding: 16
-          }}>
-            <div style={{ fontWeight: 900, marginBottom: 12 }}>Top Clients</div>
-            <div style={{ display: "grid", gap: 8 }}>
-              {byClient.slice(0, 5).map((item) => (
-                <div
-                  key={item.client}
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    padding: "8px 0",
-                    borderBottom: "1px solid #f3f4f6"
-                  }}
-                >
-                  <span style={{ fontWeight: 600 }}>{item.client || "—"}</span>
-                  <span style={{ color: "#6b7280" }}>
-                    {item.count} FE
-                  </span>
+          <div className="panel">
+            <div className="panelTitle">Top clients</div>
+            <div className="kv">
+              {byClient.slice(0, 6).map((item) => (
+                <div key={item.client} className="kvRow">
+                  <div className="kvKey">{item.client || "—"}</div>
+                  <div className="kvVal">{item.count} FE</div>
                 </div>
               ))}
             </div>

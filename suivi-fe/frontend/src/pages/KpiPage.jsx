@@ -1,19 +1,16 @@
-// src/pages/KpiPage.jsx - VERSION ADAPTÉE POUR NOUVELLE API
+// src/pages/KpiPage.jsx
 import { useEffect, useMemo, useState } from "react";
 import { ResponsiveBar } from "@nivo/bar";
 import { ResponsivePie } from "@nivo/pie";
 import { ResponsiveLine } from "@nivo/line";
 import { getClientNameFromRef } from "../data/clients.js";
-import { getAllFE, getStats } from "../services/feApi.js";
+import { getAllFE } from "../services/feApi.js";
+import StatCard from "../components/StatCard.jsx";
+import "../styles/app.css";
 
-// ... (garder toutes les fonctions utilitaires: cleanKey, getDataByKeys, parseQteEstimee, etc.)
+/* ── Utilitaires ── */
 const cleanKey = (k) =>
-  String(k || "")
-    .trim()
-    .replace(/\s+/g, " ")
-    .replace(/\//g, "_")
-    .replace(/[.]/g, "")
-    .replace(/[%]/g, "pct");
+  String(k || "").trim().replace(/\s+/g, " ").replace(/\//g, "_").replace(/[.]/g, "").replace(/[%]/g, "pct");
 
 function getDataByKeys(fe, ...keys) {
   const data = fe?.data;
@@ -26,9 +23,8 @@ function getDataByKeys(fe, ...keys) {
 }
 
 function parseQteEstimee(fe) {
-  const v = fe.qte_non_conforme || 
-    getDataByKeys(fe, "Qte estimee", "Qte estimée", "Qté estimée", "Qte NC", "Qté NC") ||
-    "";
+  const v = fe.qte_non_conforme ||
+    getDataByKeys(fe, "Qte estimee", "Qte estimée", "Qté estimée", "Qte NC", "Qté NC") || "";
   const n = Number(String(v).replace(",", ".").replace(/[^\d.]/g, ""));
   return Number.isFinite(n) ? n : 0;
 }
@@ -43,21 +39,12 @@ function getInterneExterne(fe) {
 }
 
 function getTypeDefaut(fe) {
-  const v = fe.type_nc || getDataByKeys(
-    fe,
-    "Type de défaut",
-    "Type de defaut",
-    "Type défaut",
-    "Type defaut"
-  );
+  const v = fe.type_nc || getDataByKeys(fe, "Type de défaut", "Type de defaut", "Type défaut", "Type defaut");
   return String(v || "Non renseigné");
 }
 
 function getIlot(fe) {
-  return String(
-    getDataByKeys(fe, "ILOT GENERATEUR", "Ilot générateur", "Ilot generateur") || 
-    "Non renseigné"
-  );
+  return String(getDataByKeys(fe, "ILOT GENERATEUR", "Ilot générateur", "Ilot generateur") || "Non renseigné");
 }
 
 function isoToYmd(v) {
@@ -66,157 +53,84 @@ function isoToYmd(v) {
   if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
   const d = new Date(v);
   if (Number.isFinite(d.getTime())) {
-    const yyyy = d.getFullYear();
-    const mm = String(d.getMonth() + 1).padStart(2, "0");
-    const dd = String(d.getDate()).padStart(2, "0");
-    return `${yyyy}-${mm}-${dd}`;
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   }
   return "";
 }
 
 function groupCount(rows, keyFn) {
   const m = new Map();
-  for (const r of rows) {
-    const k = keyFn(r);
-    m.set(k, (m.get(k) || 0) + 1);
-  }
+  for (const r of rows) { const k = keyFn(r); m.set(k, (m.get(k) || 0) + 1); }
   return m;
 }
 
-function toPareto(map, top = 12) {
-  const arr = [...map.entries()].map(([k, v]) => ({ label: k, value: v }));
-  arr.sort((a, b) => b.value - a.value);
+function toPareto(map, top = 10) {
+  const arr = [...map.entries()].map(([k, v]) => ({ label: k, value: v })).sort((a, b) => b.value - a.value);
   const sliced = arr.slice(0, top);
-  const other = arr.slice(top).reduce((s, x) => s + x.value, 0);
+  const other  = arr.slice(top).reduce((s, x) => s + x.value, 0);
   if (other > 0) sliced.push({ label: "Autres", value: other });
   return sliced;
 }
 
-function Card({ title, value, sub }) {
-  return (
-    <div style={styles.card}>
-      <div style={styles.cardTitle}>{title}</div>
-      <div style={styles.cardValue}>{value}</div>
-      {sub ? <div style={styles.cardSub}>{sub}</div> : null}
-    </div>
-  );
-}
+const NIVO_THEME = {
+  axis: { ticks: { text: { fontSize: 11, fill: "#64748b" } } },
+  grid: { line: { stroke: "#f1f5f9" } },
+};
 
+const BAR_COLORS = ["#2563eb", "#3b82f6", "#60a5fa", "#93c5fd"];
+
+/* ── Composant ── */
 export default function KpiPage() {
-  const [annee, setAnnee] = useState("2026");
-  const [loading, setLoading] = useState(false);
-  const [all, setAll] = useState([]);
-  const [stats, setStats] = useState(null);
-
-  const [fClient, setFClient] = useState("");
-  const [fIlot, setFIlot] = useState("");
-  const [fOrigine, setFOrigine] = useState("");
-  const [fTypeDefaut, setFTypeDefaut] = useState("");
-
-  const [drill, setDrill] = useState(null);
+  const [annee,      setAnnee]      = useState("2026");
+  const [loading,    setLoading]    = useState(false);
+  const [all,        setAll]        = useState([]);
+  const [fClient,    setFClient]    = useState("");
+  const [fIlot,      setFIlot]      = useState("");
+  const [fOrigine,   setFOrigine]   = useState("");
+  const [fTypeDefaut,setFTypeDefaut]= useState("");
+  const [drill,      setDrill]      = useState(null);
 
   useEffect(() => {
-    const loadData = async () => {
-      setLoading(true);
-      try {
-        // Charger les stats globales
-        const statsData = await getStats();
-        setStats(statsData);
-
-        // Charger toutes les FE pour les graphiques
-        const result = await getAllFE({ 
-          annee: annee || null,
-          limit: 5000 // Limite haute pour KPI
-        });
-        
-        setAll(result.items || []);
-      } catch (error) {
-        console.error("Erreur chargement KPI:", error);
-        setAll([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadData();
+    const ctrl = new AbortController();
+    setLoading(true);
+    getAllFE({ annee: annee || null, limit: 5000 })
+      .then((r) => { if (!ctrl.signal.aborted) setAll(r.items || []); })
+      .catch(() => {})
+      .finally(() => { if (!ctrl.signal.aborted) setLoading(false); });
+    return () => ctrl.abort();
   }, [annee]);
 
-  const enriched = useMemo(() => {
-    return (all || []).map((fe) => {
-      const ref = fe?.code_article || "";
-      const client = getClientNameFromRef(ref);
-      const ilot = getIlot(fe);
-      const origine = getInterneExterne(fe);
-      const typeDefaut = getTypeDefaut(fe);
-      const qteNc = parseQteEstimee(fe);
+  const enriched = useMemo(() => all.map((fe) => ({
+    ...fe,
+    _client:    getClientNameFromRef(fe?.code_article || ""),
+    _ilot:      getIlot(fe),
+    _origine:   getInterneExterne(fe),
+    _typeDefaut:getTypeDefaut(fe),
+    _qteNc:     parseQteEstimee(fe),
+    _date:      isoToYmd(fe?.date_creation),
+  })), [all]);
 
-      return {
-        ...fe,
-        _client: client,
-        _ilot: ilot,
-        _origine: origine,
-        _typeDefaut: typeDefaut,
-        _qteNc: qteNc,
-        _date: isoToYmd(fe?.date_creation),
-      };
-    });
-  }, [all]);
+  const clientsList  = useMemo(() => [...new Set(enriched.map((x) => x._client).filter(Boolean))].sort((a,b) => a.localeCompare(b,"fr")), [enriched]);
+  const ilotsList    = useMemo(() => [...new Set(enriched.map((x) => x._ilot).filter(Boolean))].sort((a,b) => a.localeCompare(b,"fr")), [enriched]);
+  const originesList = useMemo(() => [...new Set(enriched.map((x) => x._origine).filter(Boolean))].sort((a,b) => a.localeCompare(b,"fr")), [enriched]);
+  const typesList    = useMemo(() => [...new Set(enriched.map((x) => x._typeDefaut).filter(Boolean))].sort((a,b) => a.localeCompare(b,"fr")), [enriched]);
 
-  const clientsList = useMemo(() => {
-    const set = new Set(enriched.map((x) => x._client).filter(Boolean));
-    return [...set].sort((a, b) => a.localeCompare(b, "fr"));
-  }, [enriched]);
+  const filtered = useMemo(() => enriched.filter((x) =>
+    (!fClient    || x._client     === fClient)    &&
+    (!fIlot      || x._ilot       === fIlot)      &&
+    (!fOrigine   || x._origine    === fOrigine)   &&
+    (!fTypeDefaut|| x._typeDefaut === fTypeDefaut)
+  ), [enriched, fClient, fIlot, fOrigine, fTypeDefaut]);
 
-  const ilotsList = useMemo(() => {
-    const set = new Set(enriched.map((x) => x._ilot).filter(Boolean));
-    return [...set].sort((a, b) => a.localeCompare(b, "fr"));
-  }, [enriched]);
-
-  const originesList = useMemo(() => {
-    const set = new Set(enriched.map((x) => x._origine).filter(Boolean));
-    return [...set].sort((a, b) => a.localeCompare(b, "fr"));
-  }, [enriched]);
-
-  const typesList = useMemo(() => {
-    const set = new Set(enriched.map((x) => x._typeDefaut).filter(Boolean));
-    return [...set].sort((a, b) => a.localeCompare(b, "fr"));
-  }, [enriched]);
-
-  const filtered = useMemo(() => {
-    return enriched.filter((x) => {
-      if (fClient && x._client !== fClient) return false;
-      if (fIlot && x._ilot !== fIlot) return false;
-      if (fOrigine && x._origine !== fOrigine) return false;
-      if (fTypeDefaut && x._typeDefaut !== fTypeDefaut) return false;
-      return true;
-    });
-  }, [enriched, fClient, fIlot, fOrigine, fTypeDefaut]);
-
-  const total = filtered.length;
+  const total      = filtered.length;
   const totalQteNc = filtered.reduce((s, x) => s + (x._qteNc || 0), 0);
 
-  const paretoClient = useMemo(() => {
-    const map = groupCount(filtered, (x) => x._client);
-    return toPareto(map, 10).map((d) => ({ id: d.label, label: d.label, value: d.value }));
-  }, [filtered]);
-
-  const paretoIlot = useMemo(() => {
-    const map = groupCount(filtered, (x) => x._ilot);
-    const arr = toPareto(map, 10);
-    return arr.map((d) => ({ label: d.label, value: d.value }));
-  }, [filtered]);
-
-  const paretoType = useMemo(() => {
-    const map = groupCount(filtered, (x) => x._typeDefaut);
-    const arr = toPareto(map, 10);
-    return arr.map((d) => ({ label: d.label, value: d.value }));
-  }, [filtered]);
-
-  const pieOrigine = useMemo(() => {
+  const paretoIlot   = useMemo(() => toPareto(groupCount(filtered, (x) => x._ilot),   10), [filtered]);
+  const paretoType   = useMemo(() => toPareto(groupCount(filtered, (x) => x._typeDefaut), 10), [filtered]);
+  const paretoClient = useMemo(() => toPareto(groupCount(filtered, (x) => x._client),  10), [filtered]);
+  const pieOrigine   = useMemo(() => {
     const map = groupCount(filtered, (x) => x._origine);
-    const arr = [...map.entries()].map(([k, v]) => ({ id: k, label: k, value: v }));
-    arr.sort((a, b) => b.value - a.value);
-    return arr;
+    return [...map.entries()].map(([k, v]) => ({ id: k, label: k, value: v })).sort((a,b) => b.value - a.value);
   }, [filtered]);
 
   const lineWeekly = useMemo(() => {
@@ -225,227 +139,163 @@ export default function KpiPage() {
       const key = x._date ? x._date.slice(0, 7) : "NA";
       map.set(key, (map.get(key) || 0) + 1);
     }
-    const points = [...map.entries()]
-      .map(([k, v]) => ({ x: k, y: v }))
-      .sort((a, b) => String(a.x).localeCompare(String(b.x)));
-
+    const points = [...map.entries()].map(([k, v]) => ({ x: k, y: v })).sort((a,b) => String(a.x).localeCompare(String(b.x)));
     return [{ id: "FE", data: points }];
   }, [filtered]);
 
-  function openDrill(title, rows) {
-    setDrill({ title, rows });
-  }
-
-  function drillBy(predicateTitle, predicateFn) {
-    const rows = filtered.filter(predicateFn);
-    openDrill(predicateTitle, rows);
-  }
+  const drillBy = (title, fn) => setDrill({ title, rows: filtered.filter(fn) });
+  const resetFilters = () => { setFClient(""); setFIlot(""); setFOrigine(""); setFTypeDefaut(""); };
 
   return (
-    <div style={styles.page}>
-      <div style={styles.headerRow}>
+    <div className="container">
+      {/* Header */}
+      <div className="pageHead">
         <div>
-          <div style={styles.h1}>KPI Qualité</div>
-          <div style={styles.h2}>
-            {loading ? "Chargement…" : `${filtered.length} FE`} — filtres dynamiques + Pareto + drilldown
-          </div>
+          <h2 className="h1">KPI Qualité</h2>
+          <div className="sub">{loading ? "Chargement…" : `${total} FE`} — filtres dynamiques + Pareto + drilldown</div>
         </div>
 
-        <div style={styles.filters}>
-          <select value={annee} onChange={(e) => setAnnee(e.target.value)} style={styles.select}>
+        <div className="toolbar" style={{ border: "none", background: "none", padding: 0, marginBottom: 0 }}>
+          <select className="select" value={annee} onChange={(e) => setAnnee(e.target.value)}>
             <option value="2026">2026</option>
             <option value="2025">2025</option>
             <option value="2024">2024</option>
             <option value="">Toutes</option>
           </select>
-
-          <select value={fClient} onChange={(e) => setFClient(e.target.value)} style={styles.selectWide}>
+          <select className="select" value={fClient} onChange={(e) => setFClient(e.target.value)} style={{ minWidth: 200 }}>
             <option value="">Client (tous)</option>
-            {clientsList.map((c) => (
-              <option key={c} value={c}>{c}</option>
-            ))}
+            {clientsList.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
-
-          <select value={fIlot} onChange={(e) => setFIlot(e.target.value)} style={styles.select}>
+          <select className="select" value={fIlot} onChange={(e) => setFIlot(e.target.value)}>
             <option value="">Îlot (tous)</option>
-            {ilotsList.map((c) => (
-              <option key={c} value={c}>{c}</option>
-            ))}
+            {ilotsList.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
-
-          <select value={fOrigine} onChange={(e) => setFOrigine(e.target.value)} style={styles.select}>
-            <option value="">Interne/Client/Fourn. (tous)</option>
-            {originesList.map((c) => (
-              <option key={c} value={c}>{c}</option>
-            ))}
+          <select className="select" value={fOrigine} onChange={(e) => setFOrigine(e.target.value)}>
+            <option value="">Origine (tous)</option>
+            {originesList.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
-
-          <select value={fTypeDefaut} onChange={(e) => setFTypeDefaut(e.target.value)} style={styles.selectWide}>
+          <select className="select" value={fTypeDefaut} onChange={(e) => setFTypeDefaut(e.target.value)} style={{ minWidth: 200 }}>
             <option value="">Type défaut (tous)</option>
-            {typesList.map((c) => (
-              <option key={c} value={c}>{c}</option>
-            ))}
+            {typesList.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
-
-          <button
-            style={styles.btn}
-            onClick={() => {
-              setFClient(""); setFIlot(""); setFOrigine(""); setFTypeDefaut("");
-            }}
-          >
-            Reset
-          </button>
+          <button className="btn btnDark" onClick={resetFilters}>Reset</button>
         </div>
       </div>
 
-      <div style={styles.cards}>
-        <Card title="FE (filtrées)" value={total} sub={`Année: ${annee || "Toutes"}`} />
-        <Card title="Qté NC estimée" value={totalQteNc.toLocaleString("fr-FR")} sub="Somme Qte NC" />
-        <Card title="Clients touchés" value={new Set(filtered.map(x => x._client)).size} sub="via 3 chiffres REF" />
-        <Card title="Îlots touchés" value={new Set(filtered.map(x => x._ilot)).size} sub="ILOT GENERATEUR" />
+      {/* KPI cards */}
+      <div className="grid4" style={{ marginBottom: 16 }}>
+        <StatCard label="FE (filtrées)"     value={total.toLocaleString("fr-FR")}           sub={`Année : ${annee || "Toutes"}`}      accent="var(--primary)" />
+        <StatCard label="Qté NC estimée"    value={totalQteNc.toLocaleString("fr-FR")}       sub="Somme Qte NC"                        accent="var(--red)" />
+        <StatCard label="Clients touchés"   value={new Set(filtered.map((x) => x._client)).size} sub="via 3 chiffres REF"             accent="var(--amber)" />
+        <StatCard label="Îlots touchés"     value={new Set(filtered.map((x) => x._ilot)).size}   sub="ILOT GENERATEUR"                accent="var(--green)" />
       </div>
 
-      <div style={styles.grid}>
-        <div style={styles.panel}>
-          <div style={styles.panelTitle}>Pareto — Îlot générateur (Top 10)</div>
-          <div style={styles.panelSub}>Clique une barre pour voir le détail</div>
-          <div style={styles.chart}>
-            <ResponsiveBar
-              data={paretoIlot.map((d) => ({ label: d.label, FE: d.value }))}
-              keys={["FE"]}
-              indexBy="label"
-              margin={{ top: 10, right: 18, bottom: 60, left: 60 }}
-              padding={0.22}
-              enableLabel={false}
-              axisBottom={{ tickRotation: -35 }}
-              onClick={(bar) => {
-                const label = bar.indexValue;
-                drillBy(`Détail — Îlot: ${label}`, (x) => x._ilot === label);
-              }}
-            />
-          </div>
-        </div>
+      {/* Graphiques */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 14 }}>
 
-        <div style={styles.panel}>
-          <div style={styles.panelTitle}>Pareto — Type de défaut (Top 10)</div>
-          <div style={styles.panelSub}>Clique une barre pour voir le détail</div>
-          <div style={styles.chart}>
-            <ResponsiveBar
-              data={paretoType.map((d) => ({ label: d.label, FE: d.value }))}
-              keys={["FE"]}
-              indexBy="label"
-              margin={{ top: 10, right: 18, bottom: 60, left: 60 }}
-              padding={0.22}
-              enableLabel={false}
-              axisBottom={{ tickRotation: -35 }}
-              onClick={(bar) => {
-                const label = bar.indexValue;
-                drillBy(`Détail — Type défaut: ${label}`, (x) => x._typeDefaut === label);
-              }}
-            />
-          </div>
-        </div>
+        <ChartPanel title="Pareto — Îlot générateur (Top 10)" sub="Clique une barre pour voir le détail">
+          <ResponsiveBar
+            data={paretoIlot.map((d) => ({ label: d.label, FE: d.value }))}
+            keys={["FE"]} indexBy="label"
+            margin={{ top: 10, right: 18, bottom: 70, left: 50 }}
+            padding={0.25} enableLabel={false}
+            colors={BAR_COLORS} theme={NIVO_THEME}
+            axisBottom={{ tickRotation: -35 }}
+            onClick={(bar) => drillBy(`Détail — Îlot : ${bar.indexValue}`, (x) => x._ilot === bar.indexValue)}
+          />
+        </ChartPanel>
 
-        <div style={styles.panel}>
-          <div style={styles.panelTitle}>Répartition — Interne / Client / Fournisseur</div>
-          <div style={styles.panelSub}>Clique une part pour voir le détail</div>
-          <div style={styles.chart}>
-            <ResponsivePie
-              data={pieOrigine}
-              margin={{ top: 10, right: 16, bottom: 10, left: 16 }}
-              innerRadius={0.55}
-              padAngle={1.2}
-              cornerRadius={6}
-              activeOuterRadiusOffset={8}
-              enableArcLabels={false}
-              onClick={(slice) => {
-                const label = slice.id;
-                drillBy(`Détail — Origine: ${label}`, (x) => x._origine === label);
-              }}
-            />
-          </div>
-        </div>
+        <ChartPanel title="Pareto — Type de défaut (Top 10)" sub="Clique une barre pour voir le détail">
+          <ResponsiveBar
+            data={paretoType.map((d) => ({ label: d.label, FE: d.value }))}
+            keys={["FE"]} indexBy="label"
+            margin={{ top: 10, right: 18, bottom: 70, left: 50 }}
+            padding={0.25} enableLabel={false}
+            colors={BAR_COLORS} theme={NIVO_THEME}
+            axisBottom={{ tickRotation: -35 }}
+            onClick={(bar) => drillBy(`Détail — Type défaut : ${bar.indexValue}`, (x) => x._typeDefaut === bar.indexValue)}
+          />
+        </ChartPanel>
 
-        <div style={styles.panel}>
-          <div style={styles.panelTitle}>Pareto — Clients (Top 10)</div>
-          <div style={styles.panelSub}>Client = 3 premiers chiffres de la REF</div>
-          <div style={styles.chart}>
-            <ResponsiveBar
-              data={paretoClient.map((d) => ({ label: d.label, FE: d.value }))}
-              keys={["FE"]}
-              indexBy="label"
-              margin={{ top: 10, right: 18, bottom: 60, left: 60 }}
-              padding={0.22}
-              enableLabel={false}
-              axisBottom={{ tickRotation: -35 }}
-              onClick={(bar) => {
-                const label = bar.indexValue;
-                drillBy(`Détail — Client: ${label}`, (x) => x._client === label);
-              }}
-            />
-          </div>
-        </div>
+        <ChartPanel title="Répartition — Interne / Client / Fournisseur" sub="Clique une part pour voir le détail">
+          <ResponsivePie
+            data={pieOrigine}
+            margin={{ top: 10, right: 16, bottom: 10, left: 16 }}
+            innerRadius={0.55} padAngle={1.2} cornerRadius={6}
+            activeOuterRadiusOffset={8} enableArcLabels={false}
+            theme={NIVO_THEME}
+            onClick={(slice) => drillBy(`Détail — Origine : ${slice.id}`, (x) => x._origine === slice.id)}
+          />
+        </ChartPanel>
 
-        <div style={{ ...styles.panel, gridColumn: "1 / -1" }}>
-          <div style={styles.panelTitle}>Tendance — FE par mois</div>
-          <div style={styles.panelSub}>Clique un point pour zoomer</div>
-          <div style={{ ...styles.chart, height: 320 }}>
+        <ChartPanel title="Pareto — Clients (Top 10)" sub="Client = 3 premiers chiffres de la REF">
+          <ResponsiveBar
+            data={paretoClient.map((d) => ({ label: d.label, FE: d.value }))}
+            keys={["FE"]} indexBy="label"
+            margin={{ top: 10, right: 18, bottom: 70, left: 50 }}
+            padding={0.25} enableLabel={false}
+            colors={BAR_COLORS} theme={NIVO_THEME}
+            axisBottom={{ tickRotation: -35 }}
+            onClick={(bar) => drillBy(`Détail — Client : ${bar.indexValue}`, (x) => x._client === bar.indexValue)}
+          />
+        </ChartPanel>
+
+        <ChartPanel title="Tendance — FE par mois" sub="Clique un point pour voir le détail" fullWidth>
+          <div style={{ height: 300 }}>
             <ResponsiveLine
               data={lineWeekly}
-              margin={{ top: 20, right: 20, bottom: 60, left: 60 }}
+              margin={{ top: 20, right: 20, bottom: 60, left: 50 }}
               xScale={{ type: "point" }}
               yScale={{ type: "linear", min: 0, max: "auto" }}
               axisBottom={{ tickRotation: -35 }}
-              pointSize={8}
-              useMesh={true}
+              pointSize={8} useMesh
+              colors={["#2563eb"]} theme={NIVO_THEME}
               onClick={(point) => {
                 const key = point?.data?.x;
-                drillBy(`Détail — Période: ${key}`, (x) => {
-                  const k = x._date ? x._date.slice(0, 7) : "NA";
-                  return k === key;
-                });
+                drillBy(`Détail — Période : ${key}`, (x) => (x._date?.slice(0, 7) || "NA") === key);
               }}
             />
           </div>
-        </div>
+        </ChartPanel>
+
       </div>
 
-      {drill ? (
-        <div style={styles.drillOverlay} onClick={() => setDrill(null)}>
-          <div style={styles.drill} onClick={(e) => e.stopPropagation()}>
-            <div style={styles.drillTop}>
+      {/* Drill modal */}
+      {drill && (
+        <div className="modalBackdrop" onMouseDown={() => setDrill(null)}>
+          <div
+            className="modal"
+            onMouseDown={(e) => e.stopPropagation()}
+            style={{ maxWidth: 1200, padding: 16, display: "flex", flexDirection: "column", maxHeight: "88vh" }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
               <div>
-                <div style={styles.drillTitle}>{drill.title}</div>
-                <div style={styles.drillSub}>{drill.rows.length} FE</div>
+                <div className="h1" style={{ fontSize: 16 }}>{drill.title}</div>
+                <div className="sub">{drill.rows.length} FE</div>
               </div>
-              <button style={styles.btn} onClick={() => setDrill(null)}>Fermer</button>
+              <button className="btn btnDark" onClick={() => setDrill(null)}>Fermer</button>
             </div>
 
-            <div style={styles.tableWrap}>
-              <table style={styles.table}>
+            <div className="tableWrap" style={{ flex: 1, overflow: "auto" }}>
+              <table className="table">
                 <thead>
                   <tr>
-                    <th style={styles.th}>N° FE</th>
-                    <th style={styles.th}>Date</th>
-                    <th style={styles.th}>Client</th>
-                    <th style={styles.th}>Îlot</th>
-                    <th style={styles.th}>Type défaut</th>
-                    <th style={styles.th}>REF</th>
-                    <th style={styles.th}>Désignation</th>
-                    <th style={styles.th}>Qté NC</th>
+                    {["N° FE","Date","Client","Îlot","Type défaut","REF","Désignation","Qté NC"].map((h) => (
+                      <th key={h} className="th" style={{ position: "sticky", top: 0, background: "var(--surfaceAlt)" }}>{h}</th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
                   {drill.rows.slice(0, 300).map((x) => (
-                    <tr key={x.numero_fe}>
-                      <td style={styles.td}>{x.numero_fe || "—"}</td>
-                      <td style={styles.td}>{x._date || "—"}</td>
-                      <td style={styles.td}>{x._client || "—"}</td>
-                      <td style={styles.td}>{x._ilot || "—"}</td>
-                      <td style={styles.td}>{x._typeDefaut || "—"}</td>
-                      <td style={styles.td}>{x.code_article || "—"}</td>
-                      <td style={styles.td}>{x.designation || "—"}</td>
-                      <td style={styles.td}>{(x._qteNc || 0).toLocaleString("fr-FR")}</td>
+                    <tr key={x.numero_fe} className="rowHover">
+                      <td className="td"><b>{x.numero_fe || "—"}</b></td>
+                      <td className="td">{x._date || "—"}</td>
+                      <td className="td">{x._client || "—"}</td>
+                      <td className="td">{x._ilot || "—"}</td>
+                      <td className="td">{x._typeDefaut || "—"}</td>
+                      <td className="td mono">{x.code_article || "—"}</td>
+                      <td className="td">{x.designation || "—"}</td>
+                      <td className="td" style={{ textAlign: "right" }}>{(x._qteNc || 0).toLocaleString("fr-FR")}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -453,138 +303,20 @@ export default function KpiPage() {
             </div>
           </div>
         </div>
-      ) : null}
+      )}
     </div>
   );
 }
 
-// ... (garder tous les styles)
-const styles = {
-  page: {
-    padding: 16,
-    background: "#f6f7fb",
-    minHeight: "calc(100vh - 64px)",
-  },
-  headerRow: {
-    display: "flex",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
-    gap: 12,
-    flexWrap: "wrap",
-    marginBottom: 12,
-  },
-  h1: { fontSize: 22, fontWeight: 900, color: "#111827" },
-  h2: { fontSize: 13, color: "#6b7280", marginTop: 4 },
-  filters: {
-    display: "flex",
-    gap: 10,
-    flexWrap: "wrap",
-    alignItems: "center",
-    justifyContent: "flex-end",
-  },
-  select: {
-    padding: 10,
-    borderRadius: 12,
-    border: "1px solid #e5e7eb",
-    background: "white",
-    minWidth: 170,
-  },
-  selectWide: {
-    padding: 10,
-    borderRadius: 12,
-    border: "1px solid #e5e7eb",
-    background: "white",
-    minWidth: 260,
-  },
-  btn: {
-    padding: "10px 14px",
-    borderRadius: 12,
-    border: "1px solid #111827",
-    background: "#111827",
-    color: "white",
-    cursor: "pointer",
-    fontWeight: 700,
-  },
-  cards: {
-    display: "grid",
-    gridTemplateColumns: "repeat(4, minmax(220px, 1fr))",
-    gap: 12,
-    marginBottom: 12,
-  },
-  card: {
-    background: "white",
-    border: "1px solid #e5e7eb",
-    borderRadius: 16,
-    padding: 14,
-    boxShadow: "0 8px 24px rgba(17,24,39,0.06)",
-  },
-  cardTitle: { fontSize: 12, color: "#6b7280", fontWeight: 700 },
-  cardValue: { fontSize: 28, fontWeight: 900, marginTop: 6, color: "#111827" },
-  cardSub: { fontSize: 12, color: "#6b7280", marginTop: 4 },
-  grid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(2, minmax(360px, 1fr))",
-    gap: 12,
-  },
-  panel: {
-    background: "white",
-    border: "1px solid #e5e7eb",
-    borderRadius: 16,
-    padding: 14,
-    boxShadow: "0 8px 24px rgba(17,24,39,0.06)",
-  },
-  panelTitle: { fontSize: 14, fontWeight: 900, color: "#111827" },
-  panelSub: { fontSize: 12, color: "#6b7280", marginTop: 4 },
-  chart: { height: 260, marginTop: 8 },
-  drillOverlay: {
-    position: "fixed",
-    inset: 0,
-    background: "rgba(17,24,39,0.45)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 18,
-    zIndex: 50,
-  },
-  drill: {
-    width: "min(1200px, 96vw)",
-    maxHeight: "86vh",
-    background: "white",
-    borderRadius: 18,
-    border: "1px solid #e5e7eb",
-    boxShadow: "0 16px 48px rgba(17,24,39,0.22)",
-    padding: 14,
-    overflow: "hidden",
-    display: "flex",
-    flexDirection: "column",
-  },
-  drillTop: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 12,
-    marginBottom: 10,
-  },
-  drillTitle: { fontSize: 16, fontWeight: 900, color: "#111827" },
-  drillSub: { fontSize: 12, color: "#6b7280", marginTop: 2 },
-  tableWrap: { overflow: "auto", borderTop: "1px solid #f1f5f9", paddingTop: 10 },
-  table: { width: "100%", borderCollapse: "collapse" },
-  th: {
-    textAlign: "left",
-    fontSize: 12,
-    color: "#6b7280",
-    fontWeight: 800,
-    padding: "10px 8px",
-    borderBottom: "1px solid #eef2f7",
-    position: "sticky",
-    top: 0,
-    background: "white",
-  },
-  td: {
-    fontSize: 13,
-    color: "#111827",
-    padding: "10px 8px",
-    borderBottom: "1px solid #f1f5f9",
-    verticalAlign: "top",
-  },
-};
+/* ── ChartPanel ── */
+function ChartPanel({ title, sub, children, fullWidth }) {
+  return (
+    <div className="panel" style={fullWidth ? { gridColumn: "1 / -1" } : {}}>
+      <div className="panelTitle">{title}</div>
+      {sub && <div className="sub" style={{ marginBottom: 8 }}>{sub}</div>}
+      <div style={{ height: 260, marginTop: 8 }}>
+        {children}
+      </div>
+    </div>
+  );
+}

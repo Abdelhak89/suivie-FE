@@ -12,6 +12,7 @@ function truncate(v, max = 26) {
 }
 
 function CellValue({ value }) {
+  if (value && typeof value === "object" && (value.$$typeof || value.type)) return value;
   if (isEmptyValue(value)) return <span className="empty">—</span>;
   return <span className="cellText">{truncate(value)}</span>;
 }
@@ -32,24 +33,19 @@ export default function FeGrid({
   onCellClick,
   onRowClick,
   forceClickableCols = ["Description", "Détection", "D2R", "Analyse", "Plan d'action"],
-
   showCloseColumn = true,
   onCloseRow,
-  canCloseRow, // (row)=>boolean
+  canCloseRow,
 }) {
-  const flatCols = useMemo(() => config.groups.flatMap((g) => g.columns), [config]);
-
+  const flatCols  = useMemo(() => config.groups.flatMap((g) => g.columns), [config]);
   const frozenSet = useMemo(() => new Set(frozenCols), [frozenCols]);
-  const forceSet = useMemo(() => new Set(forceClickableCols), [forceClickableCols]);
+  const forceSet  = useMemo(() => new Set(forceClickableCols), [forceClickableCols]);
 
   const frozenLeft = useMemo(() => {
     const offsets = {};
     let left = 0;
     for (const col of flatCols) {
-      if (frozenSet.has(col)) {
-        offsets[col] = left;
-        left += colWidth;
-      }
+      if (frozenSet.has(col)) { offsets[col] = left; left += colWidth; }
     }
     return offsets;
   }, [flatCols, frozenSet, colWidth]);
@@ -60,17 +56,10 @@ export default function FeGrid({
         <thead>
           <tr>
             {config.groups.map((g) => (
-              <th key={g.label} colSpan={g.columns.length} className="thGroup">
-                {g.label}
-              </th>
+              <th key={g.label} colSpan={g.columns.length} className="thGroup">{g.label}</th>
             ))}
-            {showCloseColumn && (
-              <th className="thGroup" colSpan={1}>
-                Action
-              </th>
-            )}
+            {showCloseColumn && <th className="thGroup" colSpan={1}>Action</th>}
           </tr>
-
           <tr>
             {flatCols.map((c) => {
               const frozen = frozenSet.has(c);
@@ -84,22 +73,16 @@ export default function FeGrid({
                 </th>
               );
             })}
-
-            {showCloseColumn && (
-              <th className="th" style={{ minWidth: 130 }}>
-                Clôturer
-              </th>
-            )}
+            {showCloseColumn && <th className="th" style={{ minWidth: 110 }}>Clôturer</th>}
           </tr>
         </thead>
 
         <tbody>
           {rows.map((row, idx) => {
-            const statutRow = getRawValue ? getRawValue(row, "Statut") : getValue(row, "Statut");
-            const closed = isClosedStatus(statutRow);
-
-            const allowedToClose = typeof canCloseRow === "function" ? !!canCloseRow(row) : true;
-            const disabledClose = closed || !onCloseRow || !allowedToClose;
+            const statutRow     = getRawValue ? getRawValue(row, "Statut") : getValue(row, "Statut");
+            const closed        = isClosedStatus(statutRow);
+            const allowedClose  = typeof canCloseRow === "function" ? !!canCloseRow(row) : true;
+            const disabledClose = closed || !onCloseRow || !allowedClose;
 
             return (
               <tr
@@ -110,12 +93,10 @@ export default function FeGrid({
               >
                 {flatCols.map((col) => {
                   const displayValue = getValue(row, col);
-                  const rawValue = getRawValue ? getRawValue(row, col) : displayValue;
-
-                  const empty = isEmptyValue(rawValue);
-                  const frozen = frozenSet.has(col);
-
-                  const clickable = !!onCellClick && (forceSet.has(col) || (highlightMissing && empty));
+                  const rawValue     = getRawValue ? getRawValue(row, col) : displayValue;
+                  const empty        = isEmptyValue(rawValue);
+                  const frozen       = frozenSet.has(col);
+                  const clickable    = !!onCellClick && (forceSet.has(col) || (highlightMissing && empty));
 
                   return (
                     <td
@@ -123,7 +104,7 @@ export default function FeGrid({
                       className={
                         "td" +
                         (highlightMissing && empty ? " missingCell" : "") +
-                        (frozen ? " frozen" : "") +
+                        (frozen  ? " frozen"    : "") +
                         (clickable ? " clickable" : "")
                       }
                       style={frozen ? { left: frozenLeft[col], minWidth: colWidth } : { minWidth: colWidth }}
@@ -140,16 +121,14 @@ export default function FeGrid({
                 })}
 
                 {showCloseColumn && (
-                  <td className="td" style={{ minWidth: 130 }} onClick={(e) => e.stopPropagation()}>
+                  <td className="td" style={{ minWidth: 110 }} onClick={(e) => e.stopPropagation()}>
                     <button
                       className={"closeBtn" + (disabledClose ? " disabled" : "")}
                       disabled={disabledClose}
                       title={
-                        closed
-                          ? "Déjà clôturée"
-                          : !allowedToClose
-                          ? "Plan d’action non terminé"
-                          : "Clôturer cette FE"
+                        closed         ? "Déjà clôturée" :
+                        !allowedClose  ? "Plan d'action non terminé" :
+                        "Clôturer cette FE"
                       }
                       onClick={() => onCloseRow?.(row)}
                     >

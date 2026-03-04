@@ -1,18 +1,15 @@
 // services/feService.js - Service pour gérer les Fiches Événements
 import { query } from "../db-sqlserver.js";
+import { enrichFeListWithDVI, isLancementDVI } from "./feRoutingService.js";
 
 /**
  * Catégoriser un poste spécifique vers une catégorie générale
- * Exemples:
- * - "SOUCY.VERIFICATION" → "Contrôle Final"
- * - "ROUGEGREZ Sylvain" → reste tel quel si pas de catégorie trouvée
  */
 function categoriserPoste(poste) {
   if (!poste || poste.trim() === '') return null;
   
   const posteUpper = poste.toUpperCase();
   
-  // Contrôle Final
   if (posteUpper.includes('VERIFICATION') || 
       posteUpper.includes('CONTROLE FINAL') ||
       posteUpper.includes('CTRL FINAL') ||
@@ -20,7 +17,6 @@ function categoriserPoste(poste) {
     return 'Contrôle Final';
   }
   
-  // Contrôle à réception
   if (posteUpper.includes('RECEPTION') ||
       posteUpper.includes('RÉCEPTION') ||
       posteUpper.includes('CTRL ENTREE') ||
@@ -28,7 +24,6 @@ function categoriserPoste(poste) {
     return 'Contrôle à réception';
   }
   
-  // Fabrication
   if (posteUpper.includes('FABRICATION') || 
       posteUpper.includes('PRESSE') ||
       posteUpper.includes('SOUDURE') ||
@@ -42,7 +37,6 @@ function categoriserPoste(poste) {
     return 'Fabrication';
   }
   
-  // Qualité
   if (posteUpper.includes('QUALITE') ||
       posteUpper.includes('QUALITÉ') ||
       posteUpper.includes('GMT') ||
@@ -50,7 +44,6 @@ function categoriserPoste(poste) {
     return 'Qualité';
   }
   
-  // Achats/Appro
   if (posteUpper.includes('ACHAT') ||
       posteUpper.includes('APPRO') ||
       posteUpper.includes('MAGASIN') ||
@@ -58,7 +51,6 @@ function categoriserPoste(poste) {
     return 'Achats/Appro';
   }
   
-  // BE (Bureau d'Études)
   if (posteUpper.includes('BE ') ||
       posteUpper.includes('METHODE') ||
       posteUpper.includes('MÉTHODE') ||
@@ -66,7 +58,6 @@ function categoriserPoste(poste) {
     return 'BE';
   }
   
-  // Essais/Étalonnages
   if (posteUpper.includes('ESSAI') ||
       posteUpper.includes('ETALONNAGE') ||
       posteUpper.includes('ÉTALONNAGE') ||
@@ -74,7 +65,6 @@ function categoriserPoste(poste) {
     return 'Essais Etalonnages';
   }
   
-  // Client (noms de clients ou mentions client)
   if (posteUpper.includes('CLIENT') ||
       posteUpper.includes('THALES') ||
       posteUpper.includes('SAFRAN') ||
@@ -89,7 +79,6 @@ function categoriserPoste(poste) {
     return 'Client';
   }
   
-  // Fournisseur/Sous-traitant
   if (posteUpper.includes('FOURNISSEUR') ||
       posteUpper.includes('SOUS-TRAITANT') ||
       posteUpper.includes('BODYCOTE') ||
@@ -98,13 +87,11 @@ function categoriserPoste(poste) {
     return 'Fournisseur/Sous-traitant';
   }
   
-  // Commercial
   if (posteUpper.includes('COMMERCIAL') ||
       posteUpper.includes('VENTE')) {
     return 'Commercial';
   }
   
-  // Si aucune catégorie trouvée, retourner le poste brut
   return poste;
 }
 
@@ -113,32 +100,27 @@ function categoriserPoste(poste) {
  */
 function mapNconformiteToFE(row) {
   return {
-    // Identifiants
     numero_fe: row.NonConformite,
     code_lancement: row.VarAlphaUtil,
     code_article: row.CodeArticle,
     
-    // Dates
     date_creation: row.DateNonConf,
     date_decouverte: row.DateDecouverte,
     date_decision: row.DateDecision,
     date_action: row.DateAction,
     
-    // Informations générales
     designation: row.LibelleNonConf,
-    origine: row.OrigineNonConf,
+    origine: row.OrigineNonConf ? row.OrigineNonConf.trim() : null,
     sous_origine: row.SousOrigine,
     type_nc: row.TypeNonConf,
     sous_type_nc: row.SousTypeNonConf,
     statut: row.NonConfTraite === 'O' ? 'Traitée' : 'En cours',
     
-    // Découverte
-    lieu_detection: categoriserPoste(row.VarAlphaUtil8), // Catégorisé (ex: "SOUCY.VERIFICATION" → "Contrôle Final")
-    lieu_detection_brut: row.VarAlphaUtil8, // Poste brut (ex: "SOUCY.VERIFICATION")
-    decouvert_par: row.VarAlphaUtil6, // Personne qui a détecté (ex: "BORREGO Mélanie")
-    ilot_generateur: row.VarAlphaUtil4, // Phase/Poste (ex: "4")
+    lieu_detection: categoriserPoste(row.VarAlphaUtil8),
+    lieu_detection_brut: row.VarAlphaUtil8,
+    decouvert_par: row.VarAlphaUtil6,
+    ilot_generateur: row.VarAlphaUtil4,
     
-    // Quantités
     qte_estimee: row.VarNumUtil5,
     qte_lancement: row.VarNumUtil,
     qte_produite: row.VarNumUtil2,
@@ -147,46 +129,37 @@ function mapNconformiteToFE(row) {
     qte_remise_conf: row.QteRemiseConf,
     qte_rebutee: row.QteRebutee,
     
-    // Responsabilités
     fournisseur_resp: row.CodeFournisseurResp,
     operateur_resp: row.CodeOperateurResp,
     machine_resp: row.CodeMachineResp,
     
-    // Descriptions (IDs vers tables de texte)
     id_description: row.IdDescription,
     id_analyse: row.IdDescAnalyse,
     id_action: row.IdAction,
     id_action_immediate: row.IdActImmediate,
     id_note: row.IdNote,
     
-    // Coûts
     cout_gestion: row.CoutGestion,
     cout_remise_conf: row.CoutRemiseConf,
     cout_rebut: row.CoutRebut,
     
-    // Avancements
     avancement_global: row.AvancNonConf,
     avancement_analyse: row.AvancRespons,
     avancement_traitement: row.AvancTraitement,
     avancement_decision: row.AvancDecision,
     
-    // Priorité et gravité
     priorite: row.Priorite,
     gravite: row.Gravite,
     
-    // Client/Fournisseur
     client_fourn: row.ClientFourn,
     no_commande: row.NoCommande,
     
-    // Affaire
     numero_affaire: row.NumeroAffaire,
     code_section: row.CodeSection,
     
-    // Causes et Non-détection
-    cause_apparition: row.VarAlphaUtil9, // Ex: "Détermination process de fab/ctrl"
-    non_detection: row.VarAlphaUtil10, // Ex: "Détectée"
+    cause_apparition: row.VarAlphaUtil9,
+    non_detection: row.VarAlphaUtil10,
     
-    // Variables utilisateur (toutes pour flexibilité)
     var_alpha_1: row.VarAlphaUtil,
     var_alpha_2: row.VarAlphaUtil2,
     var_alpha_3: row.VarAlphaUtil3,
@@ -210,14 +183,15 @@ function mapNconformiteToFE(row) {
     var_num_10: row.VarNumUtil10,
     var_num_11: row.VarNumUtil11,
     
-    // Données brutes complètes pour compatibilité avec exports
+    // is_dvi sera enrichi après le mapping via enrichFeListWithDVI()
+    is_dvi: false,
+    
     data: row
   };
 }
 
 /**
  * Récupérer toutes les FE avec filtres optionnels
- * Retourne le COUNT total + les données paginées (50 par défaut)
  */
 export async function getAllFE({
   statut = null,
@@ -228,25 +202,36 @@ export async function getAllFE({
   origine = null,
   type_nc = null,
   limit = 50,
-  offset = 0
+  offset = 0,
+  q = null
 } = {}) {
-  // Construction de la clause WHERE commune
   let whereClause = `WHERE 1=1`;
   const params = {};
   
-  if (statut) {
+  if (origine) {
+    whereClause += ` AND LTRIM(RTRIM(OrigineNonConf)) = @origine`;
+    params.origine = origine;
+  }
+
+  if (q && q.trim() !== "") {
+    whereClause += ` AND (
+      NonConformite LIKE @search 
+      OR CodeArticle LIKE @search 
+      OR VarAlphaUtil LIKE @search 
+      OR LibelleNonConf LIKE @search 
+      OR ClientFourn LIKE @search
+    )`;
+    params.search = `%${q.trim()}%`;
+  }
+  
+  if (statut && statut !== "Tous") {
     whereClause += ` AND NonConfTraite = @statut`;
     params.statut = statut === 'Traitée' ? 'O' : 'N';
   }
   
-  if (code_article) {
+  if (code_article && !q) {
     whereClause += ` AND CodeArticle LIKE @code_article`;
     params.code_article = `%${code_article}%`;
-  }
-  
-  if (code_lancement) {
-    whereClause += ` AND VarAlphaUtil = @code_lancement`;
-    params.code_lancement = code_lancement;
   }
   
   if (date_debut) {
@@ -258,28 +243,11 @@ export async function getAllFE({
     whereClause += ` AND DateNonConf <= @date_fin`;
     params.date_fin = date_fin;
   }
-  
-  if (origine) {
-    whereClause += ` AND OrigineNonConf = @origine`;
-    params.origine = origine;
-  }
-  
-  if (type_nc) {
-    whereClause += ` AND TypeNonConf = @type_nc`;
-    params.type_nc = type_nc;
-  }
-  
-  // 1. D'abord compter le TOTAL (sans limite)
-  const countSql = `
-    SELECT COUNT(*) as total
-    FROM dbo.NCONFORMITE
-    ${whereClause}
-  `;
-  
+
+  const countSql = `SELECT COUNT(*) as total FROM dbo.NCONFORMITE ${whereClause}`;
   const countResult = await query(countSql, params);
   const total = countResult.recordset[0].total;
   
-  // 2. Ensuite récupérer les données paginées
   const dataSql = `
     SELECT *
     FROM dbo.NCONFORMITE
@@ -292,9 +260,11 @@ export async function getAllFE({
   params.limit = limit;
   
   const dataResult = await query(dataSql, params);
-  const items = dataResult.recordset.map(mapNconformiteToFE);
+  let items = dataResult.recordset.map(mapNconformiteToFE);
+
+  // ✅ Enrichissement DVI — détermine is_dvi pour le routing FAI
+  items = await enrichFeListWithDVI(items);
   
-  // 3. Retourner les deux
   return {
     items,
     total,
@@ -321,7 +291,12 @@ export async function getFEByNumero(numeroFE) {
     return null;
   }
   
-  return mapNconformiteToFE(result.recordset[0]);
+  const fe = mapNconformiteToFE(result.recordset[0]);
+
+  // ✅ Enrichissement DVI pour une FE unique
+  fe.is_dvi = await isLancementDVI(fe.code_lancement);
+
+  return fe;
 }
 
 /**
@@ -367,7 +342,7 @@ export async function getFEStatsByType() {
 }
 
 /**
- * Récupérer les statistiques par client (3 premiers caractères de CodeArticle)
+ * Récupérer les statistiques par client
  */
 export async function getFEStatsByClient() {
   const sql = `
@@ -426,8 +401,12 @@ export async function searchFE(searchTerm, limit = 100) {
     search: `%${searchTerm}%`,
     limit
   });
-  
-  return result.recordset.map(mapNconformiteToFE);
+
+  let items = result.recordset.map(mapNconformiteToFE);
+  // ✅ Enrichissement DVI pour la recherche aussi
+  items = await enrichFeListWithDVI(items);
+
+  return items;
 }
 
 export default {

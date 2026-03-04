@@ -1,287 +1,154 @@
 // src/components/PlanActionModal.jsx
 import { useEffect, useMemo, useState } from "react";
+import "../styles/app.css";
 
 function safeParse(v) {
   if (!v) return null;
   if (typeof v === "object") return v;
-  try {
-    return JSON.parse(String(v));
-  } catch {
-    return null;
-  }
+  try { return JSON.parse(String(v)); } catch { return null; }
 }
 
-function toArray(v) {
-  const p = safeParse(v);
-  return Array.isArray(p) ? p : [];
-}
+function uid() { return Math.random().toString(16).slice(2) + Date.now().toString(16); }
 
-function toObj(v) {
-  const p = safeParse(v);
-  return p && typeof p === "object" && !Array.isArray(p) ? p : null;
-}
-
-function onlyFilledEntries(obj) {
+function onlyFilled(obj) {
   if (!obj) return [];
-  return Object.entries(obj).filter(([_, val]) => String(val ?? "").trim() !== "");
+  return Object.entries(obj).filter(([, v]) => String(v ?? "").trim() !== "");
 }
 
-function uid() {
-  return Math.random().toString(16).slice(2) + Date.now().toString(16);
-}
+export default function PlanActionModal({ open, analyseValue, initialValue, onCancel, onSave }) {
+  const analyseObj    = useMemo(() => { const p = safeParse(analyseValue); return p && !Array.isArray(p) ? p : null; }, [analyseValue]);
+  const analyseFilled = useMemo(() => onlyFilled(analyseObj), [analyseObj]);
 
-export default function PlanActionModal({
-  open,
-  analyseValue,   // JSON object string (6M)
-  initialValue,   // JSON array string (plan actions)
-  onCancel,
-  onSave,
-}) {
-  const analyseObj = useMemo(() => toObj(analyseValue) || null, [analyseValue]);
-
-  const analyseFilled = useMemo(() => onlyFilledEntries(analyseObj), [analyseObj]);
-
-  const [actions, setActions] = useState([]);
-  const [newActionText, setNewActionText] = useState("");
+  const [actions, setActions]       = useState([]);
+  const [newText, setNewText]       = useState("");
 
   useEffect(() => {
     if (!open) return;
-    const arr = toArray(initialValue).map((a) => ({
-      id: a?.id || uid(),
-      text: String(a?.text || ""),
-      done: !!a?.done,
-      notRealizable: !!a?.notRealizable,
-      note: String(a?.note || ""),
-    }));
-    setActions(arr);
-    setNewActionText("");
+    const arr = safeParse(initialValue);
+    setActions(
+      Array.isArray(arr)
+        ? arr.map((a) => ({ id: a?.id || uid(), text: String(a?.text || ""), done: !!a?.done, notRealizable: !!a?.notRealizable, note: String(a?.note || "") }))
+        : []
+    );
+    setNewText("");
   }, [open, initialValue]);
 
   if (!open) return null;
 
   const addAction = () => {
-    const t = String(newActionText || "").trim();
+    const t = newText.trim();
     if (!t) return;
-    setActions((prev) => [...prev, { id: uid(), text: t, done: false, notRealizable: false, note: "" }]);
-    setNewActionText("");
+    setActions((p) => [...p, { id: uid(), text: t, done: false, notRealizable: false, note: "" }]);
+    setNewText("");
   };
 
-  const updateAction = (id, patch) => {
-    setActions((prev) =>
-      prev.map((a) => {
-        if (a.id !== id) return a;
-        const next = { ...a, ...patch };
-
-        // mutual exclusive
-        if (patch.done === true) {
-          next.notRealizable = false;
-          next.note = "";
-        }
-        if (patch.notRealizable === true) {
-          next.done = false;
-        }
-        if (patch.notRealizable === false) {
-          next.note = "";
-        }
-
-        return next;
-      })
-    );
+  const update = (id, patch) => {
+    setActions((prev) => prev.map((a) => {
+      if (a.id !== id) return a;
+      const next = { ...a, ...patch };
+      if (patch.done === true)          { next.notRealizable = false; next.note = ""; }
+      if (patch.notRealizable === true) { next.done = false; }
+      if (patch.notRealizable === false){ next.note = ""; }
+      return next;
+    }));
   };
 
-  const removeAction = (id) => setActions((prev) => prev.filter((a) => a.id !== id));
-
-  const save = () => {
-    // on garde tout, mais côté clôture on checkera la complétude
-    onSave(JSON.stringify(actions));
-  };
+  const remove = (id) => setActions((p) => p.filter((a) => a.id !== id));
 
   return (
-    <div style={backdrop}>
-      <div style={modal}>
-        <div style={header}>
-          <div style={{ fontWeight: 800 }}>Plan d’action</div>
-          <button onClick={onCancel} style={xBtn}>✕</button>
+    <div className="modalBackdrop" onMouseDown={onCancel}>
+      <div className="modal" onMouseDown={(e) => e.stopPropagation()} style={{ maxWidth: 900 }}>
+
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+          <div className="h1" style={{ fontSize: 16 }}>Plan d'action</div>
+          <button className="btn" onClick={onCancel}>✕</button>
         </div>
 
-        <div style={{ color: "#6b7280", fontSize: 13, marginBottom: 8 }}>Analyse (rappel)</div>
-
-        <div style={analyseBox}>
+        {/* Rappel analyse */}
+        <div className="sub" style={{ marginBottom: 6 }}>Analyse (rappel)</div>
+        <div className="panel" style={{ maxHeight: 180, overflow: "auto", marginBottom: 16 }}>
           {analyseFilled.length === 0 ? (
-            <div style={{ color: "#6b7280" }}>—</div>
+            <span className="sub">—</span>
           ) : (
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 10 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "140px 1fr", gap: "6px 12px" }}>
               {analyseFilled.map(([k, v]) => (
-                <div key={k} style={{ display: "contents" }}>
-                  <div style={{ fontWeight: 700 }}>{k}</div>
-                  <div style={{ whiteSpace: "pre-wrap" }}>{String(v)}</div>
-                </div>
+                <>
+                  <div key={k + "_k"} style={{ fontWeight: 700, fontSize: 12, color: "var(--inkLight)" }}>{k}</div>
+                  <div key={k + "_v"} style={{ fontSize: 12, whiteSpace: "pre-wrap" }}>{String(v)}</div>
+                </>
               ))}
             </div>
           )}
         </div>
 
-        <div style={{ marginTop: 14, fontWeight: 800 }}>Actions</div>
-
-        <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
+        {/* Nouvelle action */}
+        <div className="label" style={{ marginBottom: 8 }}>Actions</div>
+        <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
           <input
-            value={newActionText}
-            onChange={(e) => setNewActionText(e.target.value)}
+            className="input"
+            style={{ flex: 1 }}
+            value={newText}
+            onChange={(e) => setNewText(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && addAction()}
             placeholder="Nouvelle action…"
-            style={input}
           />
-          <button onClick={addAction} style={btnPrimary}>+ Ajouter</button>
+          <button className="btn btnDark" onClick={addAction}>+ Ajouter</button>
         </div>
 
-        <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
-          {actions.length === 0 ? (
-            <div style={{ color: "#6b7280" }}>Aucune action.</div>
-          ) : (
-            actions.map((a, idx) => (
-              <div key={a.id} style={actionRow}>
-                <div style={{ fontWeight: 700 }}>{idx + 1}.</div>
-                <div style={{ whiteSpace: "pre-wrap" }}>{a.text}</div>
+        {/* Liste actions */}
+        <div style={{ display: "grid", gap: 10, maxHeight: 380, overflowY: "auto" }}>
+          {actions.length === 0 && <div className="sub">Aucune action.</div>}
+          {actions.map((a, idx) => (
+            <div
+              key={a.id}
+              className="panel"
+              style={{
+                display: "grid",
+                gridTemplateColumns: "28px 1fr auto auto auto",
+                gap: 10,
+                alignItems: "start",
+                padding: "10px 14px",
+                background: a.done ? "var(--greenBg)" : a.notRealizable ? "var(--amberBg)" : "var(--surface)",
+              }}
+            >
+              <div style={{ fontWeight: 700, paddingTop: 2 }}>{idx + 1}.</div>
+              <div style={{ fontSize: 13, whiteSpace: "pre-wrap", paddingTop: 2 }}>{a.text}</div>
 
-                <label style={checkLabel}>
-                  <input
-                    type="checkbox"
-                    checked={a.done}
-                    onChange={(e) => updateAction(a.id, { done: e.target.checked })}
+              <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 12, fontWeight: 600, whiteSpace: "nowrap" }}>
+                <input type="checkbox" checked={a.done} onChange={(e) => update(a.id, { done: e.target.checked })} />
+                Fait
+              </label>
+
+              <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 12, fontWeight: 600, whiteSpace: "nowrap" }}>
+                <input type="checkbox" checked={a.notRealizable} onChange={(e) => update(a.id, { notRealizable: e.target.checked })} />
+                Non réalisable
+              </label>
+
+              <button className="btn btnDanger" style={{ padding: "4px 8px", fontSize: 11 }} onClick={() => remove(a.id)}>
+                Suppr.
+              </button>
+
+              {a.notRealizable && (
+                <div style={{ gridColumn: "2 / -1", marginTop: 4 }}>
+                  <div className="label" style={{ marginBottom: 4 }}>Note (obligatoire)</div>
+                  <textarea
+                    className="textarea"
+                    rows={2}
+                    value={a.note}
+                    onChange={(e) => update(a.id, { note: e.target.value })}
+                    placeholder="Pourquoi non réalisable ?"
                   />
-                  Fait
-                </label>
-
-                <label style={checkLabel}>
-                  <input
-                    type="checkbox"
-                    checked={a.notRealizable}
-                    onChange={(e) => updateAction(a.id, { notRealizable: e.target.checked })}
-                  />
-                  Non réalisable
-                </label>
-
-                <button onClick={() => removeAction(a.id)} style={btnGhost}>Suppr.</button>
-
-                {a.notRealizable && (
-                  <div style={{ gridColumn: "2 / -1", marginTop: 6 }}>
-                    <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 6 }}>
-                      Note (obligatoire si non réalisable)
-                    </div>
-                    <textarea
-                      value={a.note}
-                      onChange={(e) => updateAction(a.id, { note: e.target.value })}
-                      rows={3}
-                      style={{ ...input, resize: "vertical" }}
-                      placeholder="Pourquoi non réalisable ?"
-                    />
-                  </div>
-                )}
-              </div>
-            ))
-          )}
+                </div>
+              )}
+            </div>
+          ))}
         </div>
 
-        <div style={footer}>
-          <button onClick={onCancel} style={btnGhost}>Annuler</button>
-          <button onClick={save} style={btnPrimary}>Enregistrer</button>
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 16 }}>
+          <button className="btn" onClick={onCancel}>Annuler</button>
+          <button className="btn btnDark" onClick={() => onSave(JSON.stringify(actions))}>Enregistrer</button>
         </div>
       </div>
     </div>
   );
 }
-
-const backdrop = {
-  position: "fixed",
-  inset: 0,
-  background: "rgba(0,0,0,.35)",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  padding: 16,
-  zIndex: 2000,
-};
-
-const modal = {
-  width: "min(900px, 96vw)",
-  maxHeight: "92vh",
-  overflow: "auto",
-  background: "white",
-  borderRadius: 16,
-  boxShadow: "0 10px 40px rgba(0,0,0,.2)",
-  padding: 16,
-};
-
-const header = {
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "space-between",
-  marginBottom: 10,
-};
-
-const xBtn = {
-  border: "1px solid #e5e7eb",
-  background: "white",
-  borderRadius: 10,
-  padding: "6px 10px",
-  cursor: "pointer",
-};
-
-const analyseBox = {
-  border: "1px solid #e5e7eb",
-  borderRadius: 12,
-  padding: 12,
-  background: "#f9fafb",
-  maxHeight: 200,
-  overflow: "auto",
-};
-
-const input = {
-  width: "100%",
-  padding: 12,
-  borderRadius: 12,
-  border: "1px solid #e5e7eb",
-  outline: "none",
-};
-
-const actionRow = {
-  display: "grid",
-  gridTemplateColumns: "28px 1fr 90px 140px 90px",
-  gap: 10,
-  alignItems: "start",
-  border: "1px solid #eef2f7",
-  borderRadius: 14,
-  padding: 12,
-  background: "#fff",
-};
-
-const checkLabel = {
-  display: "flex",
-  gap: 8,
-  alignItems: "center",
-  fontSize: 13,
-  whiteSpace: "nowrap",
-};
-
-const footer = {
-  display: "flex",
-  justifyContent: "flex-end",
-  gap: 10,
-  marginTop: 14,
-};
-
-const btnGhost = {
-  padding: "10px 14px",
-  borderRadius: 12,
-  border: "1px solid #e5e7eb",
-  background: "white",
-  cursor: "pointer",
-};
-
-const btnPrimary = {
-  padding: "10px 14px",
-  borderRadius: 12,
-  border: "1px solid #111827",
-  background: "#111827",
-  color: "white",
-  cursor: "pointer",
-};
