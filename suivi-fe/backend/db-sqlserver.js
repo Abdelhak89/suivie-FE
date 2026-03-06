@@ -2,15 +2,16 @@
 import sql from "mssql";
 import "dotenv/config";
 
-// Configuration SQL Server
 const config = {
   server: process.env.DB_SERVER || "sqlc2",
   database: process.env.DB_DATABASE || "KTISSOUCY",
   user: process.env.DB_USER || "aesshih",
   password: process.env.DB_PASSWORD || "Aesshih2601!",
+  requestTimeout: 60000,   // ← 60s (défaut = 15s)
+  connectionTimeout: 15000,
   options: {
-    encrypt: process.env.DB_ENCRYPT === "true", // false pour réseau local
-    trustServerCertificate: process.env.DB_TRUST_CERT === "true", // true pour dev
+    encrypt: process.env.DB_ENCRYPT === "true",
+    trustServerCertificate: process.env.DB_TRUST_CERT === "true",
     enableArithAbort: true,
   },
   pool: {
@@ -20,12 +21,8 @@ const config = {
   },
 };
 
-// Pool de connexions
 let pool = null;
 
-/**
- * Obtenir le pool de connexions (singleton)
- */
 export async function getPool() {
   if (!pool) {
     pool = await sql.connect(config);
@@ -34,32 +31,20 @@ export async function getPool() {
   return pool;
 }
 
-/**
- * Exécuter une requête SQL
- * @param {string} query - Requête SQL
- * @param {object} params - Paramètres (ex: {id: 123, statut: 'Ouvert'})
- */
-export async function query(query, params = {}) {
+export async function query(queryStr, params = {}) {
   try {
     const pool = await getPool();
     const request = pool.request();
-
-    // Ajouter les paramètres
     for (const [key, value] of Object.entries(params)) {
       request.input(key, value);
     }
-
-    const result = await request.query(query);
-    return result;
+    return await request.query(queryStr);
   } catch (error) {
     console.error("❌ Erreur SQL:", error);
     throw error;
   }
 }
 
-/**
- * Fermer la connexion (à appeler lors du shutdown)
- */
 export async function closePool() {
   if (pool) {
     await pool.close();
@@ -68,15 +53,7 @@ export async function closePool() {
   }
 }
 
-// Gestion propre de l'arrêt
-process.on("SIGINT", async () => {
-  await closePool();
-  process.exit(0);
-});
-
-process.on("SIGTERM", async () => {
-  await closePool();
-  process.exit(0);
-});
+process.on("SIGINT",  async () => { await closePool(); process.exit(0); });
+process.on("SIGTERM", async () => { await closePool(); process.exit(0); });
 
 export default { getPool, query, closePool };

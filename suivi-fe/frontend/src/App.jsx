@@ -14,6 +14,8 @@ import CliniqueQualitePage from "./pages/CliniqueQualitePage.jsx";
 import AllFePage from "./pages/AllFePage.jsx";
 import AccueilProfilsPage from "./pages/AccueilProfilsPage.jsx";
 import QualiticienPage from "./pages/QualiticienPage.jsx";
+import DeclarationFEPage from "./pages/DeclarationFEPage.jsx";
+
 
 export default function App() {
   return (
@@ -37,6 +39,7 @@ export default function App() {
         <Route path="/clinique-qualite" element={<CliniqueQualitePage />} />
         <Route path="/alerte-qualite" element={<AlerteQualitePage />} />
         <Route path="/all-fe" element={<AllFePage />} />
+        <Route path="/declaration-fe" element={<DeclarationFEPage />} />
 
         <Route path="*" element={<div style={{padding:32}}>404 - Page introuvable</div>} />
       </Route>
