@@ -1,9 +1,7 @@
 // src/layouts/SidebarLayout.jsx — Style Apple
-
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { getProfile, clearProfile } from "../lib/session";
 
-// ─── Tokens ───────────────────────────────────────────────────────────────────
 const T = {
   bg:          "#f5f5f7",
   surface:     "#ffffff",
@@ -22,7 +20,6 @@ const T = {
   shadowMd:    "0 8px 32px rgba(0,0,0,0.12)",
 };
 
-// ─── CSS injecté ──────────────────────────────────────────────────────────────
 const SIDEBAR_CSS = `
 .ap-shell {
   display: grid;
@@ -30,8 +27,6 @@ const SIDEBAR_CSS = `
   min-height: 100vh;
   background: ${T.bg};
 }
-
-/* ── Sidebar ── */
 .ap-side {
   position: sticky;
   top: 0;
@@ -45,8 +40,6 @@ const SIDEBAR_CSS = `
   overflow: hidden;
   z-index: 100;
 }
-
-/* ── Brand ── */
 .ap-brand {
   display: flex;
   align-items: center;
@@ -81,8 +74,6 @@ const SIDEBAR_CSS = `
   color: ${T.textLight};
   margin-top: 1px;
 }
-
-/* ── Profile card ── */
 .ap-me-card {
   margin: 0 12px 14px;
   padding: 12px 14px;
@@ -99,6 +90,11 @@ const SIDEBAR_CSS = `
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.ap-me-role {
+  font-size: 11px;
+  color: ${T.textSecond};
+  margin-top: 2px;
 }
 .ap-me-meta {
   display: flex;
@@ -143,8 +139,12 @@ const SIDEBAR_CSS = `
   color: #fff;
 }
 .ap-me-btn-dark:hover { background: #2d2d2f; }
-
-/* ── Nav separator label ── */
+.ap-me-btn-logout {
+  background: #fff0f0;
+  border-color: rgba(255,59,48,0.25);
+  color: #ff3b30;
+}
+.ap-me-btn-logout:hover { background: #ffe5e5; border-color: rgba(255,59,48,0.4); color: #d70015; }
 .ap-nav-sep {
   padding: 10px 18px 4px;
   font-size: 10px;
@@ -154,8 +154,6 @@ const SIDEBAR_CSS = `
   letter-spacing: .6px;
   flex-shrink: 0;
 }
-
-/* ── Nav ── */
 .ap-nav {
   flex: 1;
   overflow-y: auto;
@@ -166,7 +164,6 @@ const SIDEBAR_CSS = `
 }
 .ap-nav::-webkit-scrollbar { width: 4px; }
 .ap-nav::-webkit-scrollbar-thumb { background: rgba(0,0,0,.10); border-radius: 2px; }
-
 .ap-nav-item {
   display: flex;
   align-items: center;
@@ -184,67 +181,23 @@ const SIDEBAR_CSS = `
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.ap-nav-item:hover {
-  background: rgba(0,0,0,0.04);
-  color: ${T.textPrimary};
-}
-.ap-nav-item.active {
-  background: ${T.accentLight};
-  border-color: ${T.accentBorder};
-  color: ${T.accent};
-  font-weight: 600;
-}
-.ap-nav-item.cta {
-  background: ${T.accent};
-  border-color: ${T.accent};
-  color: #fff;
-  font-weight: 600;
-  margin-bottom: 6px;
-}
+.ap-nav-item:hover { background: rgba(0,0,0,0.04); color: ${T.textPrimary}; }
+.ap-nav-item.active { background: ${T.accentLight}; border-color: ${T.accentBorder}; color: ${T.accent}; font-weight: 600; }
+.ap-nav-item.cta { background: ${T.accent}; border-color: ${T.accent}; color: #fff; font-weight: 600; margin-bottom: 6px; }
 .ap-nav-item.cta:hover { background: #0077ed; border-color: #0077ed; }
 .ap-nav-item.cta.active { background: ${T.accent}; color: #fff; }
-
-.ap-nav-icon {
-  font-size: 14px;
-  flex-shrink: 0;
-  width: 20px;
-  text-align: center;
-}
-
-/* ── Bottom ── */
+.ap-nav-icon { font-size: 14px; flex-shrink: 0; width: 20px; text-align: center; }
 .ap-side-bottom {
   flex-shrink: 0;
   padding: 10px 18px 14px;
   border-top: 1px solid ${T.border};
 }
-.ap-side-hint {
-  font-size: 10.5px;
-  color: ${T.textLight};
-  line-height: 1.5;
-}
-
-/* ── Main ── */
-.ap-main {
-  min-height: 100vh;
-  background: ${T.bg};
-  overflow: auto;
-}
-
-/* ── Responsive ── */
+.ap-side-hint { font-size: 10.5px; color: ${T.textLight}; line-height: 1.5; }
+.ap-main { min-height: 100vh; background: ${T.bg}; overflow: auto; }
 @media (max-width: 1000px) {
   .ap-shell { grid-template-columns: 1fr; }
-  .ap-side {
-    position: relative;
-    height: auto;
-    border-right: none;
-    border-bottom: 1px solid ${T.border};
-  }
-  .ap-nav {
-    flex-direction: row;
-    flex-wrap: wrap;
-    overflow: visible;
-    padding: 0 8px 8px;
-  }
+  .ap-side { position: relative; height: auto; border-right: none; border-bottom: 1px solid ${T.border}; }
+  .ap-nav { flex-direction: row; flex-wrap: wrap; overflow: visible; padding: 0 8px 8px; }
   .ap-side-bottom { display: none; }
   .ap-nav-sep { display: none; }
 }
@@ -258,36 +211,45 @@ function injectCSS() {
   document.head.appendChild(s);
 }
 
-// ─── Nav items ────────────────────────────────────────────────────────────────
-const NAV = [
-  // CTA en haut
+const ALL_SITES = []; // conservé pour compatibilité
+
+const NAV_BASE = [
   { to: "/declaration-fe",   label: "Nouvelle FE",      icon: "➕", cta: true },
-  // Suivi
   { sep: "Suivi NC" },
   { to: "/interne-serie",    label: "Interne Série",    icon: "🔧" },
   { to: "/interne-fai",      label: "Interne FAI",      icon: "📋" },
   { to: "/client",           label: "Client",           icon: "👥" },
   { to: "/fournisseur",      label: "Fournisseur",      icon: "📦" },
-  // Analyse
+  { to: "/groupe",           label: "Groupe",           icon: "🔗" },
   { sep: "Analyse" },
   { to: "/kpi",              label: "KPI",              icon: "📊" },
-  
-  // Exports
   { sep: "Exports" },
   { to: "/alerte-qualite",   label: "Alerte Qualité",   icon: "🚨" },
   { to: "/derogation",       label: "Dérogation",       icon: "📝" },
-  // Admin
   { sep: "Admin" },
   { to: "/manager",          label: "Manager",          icon: "⚙️" },
   { to: "/accueil",          label: "Accueil profils",  icon: "🏠" },
 ];
 
-// ─── Composant ────────────────────────────────────────────────────────────────
+function handleLogout(nav) {
+  localStorage.removeItem("kep_token");
+  localStorage.removeItem("kep_user");
+  clearProfile?.();
+  nav("/login", { replace: true });
+}
+
 export default function SidebarLayout() {
   const nav     = useNavigate();
   const profile = getProfile?.() || null;
 
-  // inject CSS once
+  // Récupère les infos du qualitien connecté
+  const kepUser = (() => {
+    try { return JSON.parse(localStorage.getItem("kep_user")); }
+    catch { return null; }
+  })();
+
+  const NAV = NAV_BASE;
+
   injectCSS();
 
   return (
@@ -303,29 +265,50 @@ export default function SidebarLayout() {
           </div>
         </div>
 
-        {/* Profil card */}
+        {/* Profil card — qualitien connecté ou profil session */}
         <div className="ap-me-card">
-          <div className="ap-me-name">{profile?.label || "Aucun profil"}</div>
-          <div className="ap-me-meta">
-            <span className="ap-me-badge">{profile?.role || "—"}</span>
-            {profile?.clientCodes?.length > 0 && (
-              <span className="ap-me-badge" style={{ background: "rgba(48,209,88,0.12)", color: "#1a7a3f" }}>
-                {profile.clientCodes.length} clients
-              </span>
-            )}
-          </div>
-          <div className="ap-me-actions">
-            <button className="ap-me-btn" onClick={() => nav("/accueil")}>Changer</button>
-            <button className="ap-me-btn ap-me-btn-dark" onClick={() => { clearProfile?.(); nav("/accueil", { replace: true }); }}>Reset</button>
-          </div>
+          {kepUser ? (
+            <>
+              <div className="ap-me-name">{kepUser.prenom} {kepUser.nom}</div>
+              <div className="ap-me-role">{kepUser.email}</div>
+              <div className="ap-me-meta">
+                <span className="ap-me-badge">{kepUser.role}</span>
+                <span className="ap-me-badge" style={{ background: "rgba(48,209,88,0.12)", color: "#1a7a3f" }}>
+                  {kepUser.sites}
+                </span>
+              </div>
+              <div className="ap-me-actions">
+                <button
+                  className="ap-me-btn ap-me-btn-logout"
+                  onClick={() => handleLogout(nav)}
+                >
+                  Déconnexion
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="ap-me-name">{profile?.label || "Aucun profil"}</div>
+              <div className="ap-me-meta">
+                <span className="ap-me-badge">{profile?.role || "—"}</span>
+                {profile?.clientCodes?.length > 0 && (
+                  <span className="ap-me-badge" style={{ background: "rgba(48,209,88,0.12)", color: "#1a7a3f" }}>
+                    {profile.clientCodes.length} clients
+                  </span>
+                )}
+              </div>
+              <div className="ap-me-actions">
+                <button className="ap-me-btn" onClick={() => nav("/accueil")}>Changer</button>
+                <button className="ap-me-btn ap-me-btn-dark" onClick={() => { clearProfile?.(); nav("/accueil", { replace: true }); }}>Reset</button>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Navigation */}
         <nav className="ap-nav">
           {NAV.map((x, i) => {
-            if (x.sep) return (
-              <div key={`sep-${i}`} className="ap-nav-sep">{x.sep}</div>
-            );
+            if (x.sep) return <div key={`sep-${i}`} className="ap-nav-sep">{x.sep}</div>;
             return (
               <NavLink
                 key={x.to}
@@ -341,9 +324,9 @@ export default function SidebarLayout() {
           })}
         </nav>
 
-        {/* Bottom hint */}
+        {/* Bottom */}
         <div className="ap-side-bottom">
-          <div className="ap-side-hint">Suivi-FE · v2 · Apple UI</div>
+          <div className="ap-side-hint">Suivi-FE · v2 · KEP Qualité</div>
         </div>
 
       </aside>

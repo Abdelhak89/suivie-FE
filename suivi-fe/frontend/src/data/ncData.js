@@ -592,7 +592,7 @@ export const TYPE_NC = ["Client", "Interne", "Fournisseur", "FAI"];
 export const FAI_TYPE = ["1er Article", "FAB SUP 24 mois", "Évolution"];
 
 // ── Fournisseur site ─────────────────────────────────────────────
-export const FOURNISSEUR_SITE = ["KMTM", "LAXOU", "SOUCY", "Autres"];
+export const FOURNISSEUR_SITE = ["KMTM", "LAXOU", "SOUCY","SENS", "Autres"];
 
 // ── Types de défaut (aspect, dimensionnel…) ──────────────────────
 export const TYPES_DEFAUT = [

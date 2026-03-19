@@ -1,4 +1,12 @@
-import { query } from "../db-sqlserver.js";
+import { getPool } from "../db-sqlserver.js";
+async function query(sql, params = {}) {
+  const pool    = getPool("ktissoucy");
+  const request = pool.request();
+  for (const [key, value] of Object.entries(params)) {
+    request.input(key, value);
+  }
+  return request.query(sql);
+}
 
 const DVI_COLUMN = 'VarAlphaUtil10';
 

@@ -1,211 +1,126 @@
 // src/services/feApi.js
-// Service API pour se connecter au backend Node.js (port 4000)
+import { getAllSitesFromJWT } from "../utils/auth.js";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:4000";
 
-/**
- * Récupérer toutes les FE avec filtres
- */
-export async function getAllFE({
-  statut = null,
-  code_article = null,
-  code_lancement = null,
-  date_debut = null,
-  date_fin = null,
-  origine = null,
-  type_nc = null,
-  limit = 1000,
-  offset = 0,
-  annee = null,
-  q = null // recherche globale
-} = {}) {
-  const params = new URLSearchParams();
-  
-  if (statut) params.set('statut', statut);
-  if (code_article) params.set('code_article', code_article);
-  if (code_lancement) params.set('code_lancement', code_lancement);
-  if (date_debut) params.set('date_debut', date_debut);
-  if (date_fin) params.set('date_fin', date_fin);
-  if (origine) params.set('origine', origine);
-  if (type_nc) params.set('type_nc', type_nc);
-  if (limit) params.set('limit', String(limit));
-  if (offset) params.set('offset', String(offset));
-  
-  // Filtre par année
-  if (annee) {
-    params.set('date_debut', `${annee}-01-01`);
-    params.set('date_fin', `${annee}-12-31`);
+// Sites Diapason uniques — SOUCY et SENS partagent la même BDD
+// On déduplique pour éviter des requêtes en double
+function getUniqueDiapasonSites(sites) {
+  // "sens" est dans ktissoucy comme "soucy" — on évite de fetcher deux fois
+  const seen = new Set();
+  const unique = [];
+  for (const s of sites) {
+    const pool = s === "sens" ? "soucy" : s; // sens → pool soucy
+    if (!seen.has(pool)) { seen.add(pool); unique.push(s); }
   }
-  
-  const url = `${API_BASE_URL}/api/fe?${params.toString()}`;
-  
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`Erreur API: ${response.status}`);
-  }
-  
-  const data = await response.json();
-  return {
-    items: data.data || [],
-    total: data.count || 0,
-    success: data.success
-  };
+  return unique;
 }
 
 /**
- * Recherche full-text
+ * Récupérer toutes les FE Diapason — tous les sites accessibles au user
+ */
+export async function getAllFE({
+  statut = null, code_article = null, code_lancement = null,
+  date_debut = null, date_fin = null, origine = null,
+  type_nc = null, limit = 1000, offset = 0, annee = null, q = null,
+} = {}) {
+  const sites = getUniqueDiapasonSites(getAllSitesFromJWT());
+
+  const params = new URLSearchParams();
+  if (statut)       params.set("statut",       statut);
+  if (code_article) params.set("code_article", code_article);
+  if (origine)      params.set("origine",      origine);
+  if (type_nc)      params.set("type_nc",      type_nc);
+  if (q)            params.set("q",            q);
+  params.set("limit",  String(limit));
+  params.set("offset", String(offset));
+  if (annee) {
+    params.set("date_debut", `${annee}-01-01`);
+    params.set("date_fin",   `${annee}-12-31`);
+  }
+
+  // Fetch en parallèle sur tous les sites Diapason
+  const results = await Promise.allSettled(
+    sites.map(site => {
+      const p = new URLSearchParams(params);
+      p.set("site", site);
+      return fetch(`${API_BASE_URL}/api/fe?${p.toString()}`)
+        .then(r => r.ok ? r.json() : { data: [] })
+        .then(d => (d.data || []).map(fe => ({ ...fe, site_diapason: site.toUpperCase() })))
+        .catch(() => []);
+    })
+  );
+
+  const allItems = results
+    .filter(r => r.status === "fulfilled")
+    .flatMap(r => r.value)
+    .sort((a, b) => new Date(b.date_creation) - new Date(a.date_creation));
+
+  return { items: allItems, total: allItems.length, success: true };
+}
+
+/**
+ * Recherche full-text — sur le site principal du user
  */
 export async function searchFE(searchTerm, limit = 100) {
-  const params = new URLSearchParams();
-  params.set('q', searchTerm);
-  params.set('limit', String(limit));
-  
-  const url = `${API_BASE_URL}/api/fe/search?${params.toString()}`;
-  
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`Erreur API: ${response.status}`);
-  }
-  
+  const sites = getAllSitesFromJWT();
+  const site  = sites[0] || "soucy";
+  const params = new URLSearchParams({ q: searchTerm, limit: String(limit), site });
+  const response = await fetch(`${API_BASE_URL}/api/fe/search?${params.toString()}`);
+  if (!response.ok) throw new Error(`Erreur API: ${response.status}`);
   const data = await response.json();
-  return {
-    items: data.data || [],
-    total: data.count || 0,
-    query: data.query
-  };
+  return { items: data.data || [], total: data.count || 0, query: data.query };
 }
 
 /**
  * Récupérer une FE par son numéro
+ * site optionnel — si non fourni on essaie tous les sites
  */
-export async function getFEByNumero(numeroFE) {
-  const url = `${API_BASE_URL}/api/fe/${numeroFE}`;
-  
-  const response = await fetch(url);
-  if (!response.ok) {
-    if (response.status === 404) {
-      return null;
+export async function getFEByNumero(numeroFE, site = null) {
+  const sites = site ? [site] : getAllSitesFromJWT();
+
+  for (const s of sites) {
+    const url = `${API_BASE_URL}/api/fe/${numeroFE}?site=${s}`;
+    const response = await fetch(url);
+    if (response.ok) {
+      const data = await response.json();
+      if (data.data) return data.data;
     }
-    throw new Error(`Erreur API: ${response.status}`);
   }
-  
+  return null;
+}
+
+export async function getStats(site = null) {
+  const s = site || getAllSitesFromJWT()[0] || "soucy";
+  const response = await fetch(`${API_BASE_URL}/api/fe/stats?site=${s}`);
+  if (!response.ok) throw new Error(`Erreur API: ${response.status}`);
   const data = await response.json();
   return data.data;
 }
 
-/**
- * Récupérer les statistiques
- */
-export async function getStats() {
-  const url = `${API_BASE_URL}/api/fe/stats`;
-  
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`Erreur API: ${response.status}`);
-  }
-  
-  const data = await response.json();
-  return data.data;
-}
-
-/**
- * Exporter A3 DMAIC
- */
-export async function exportA3Dmaic(numeroFE) {
-  const url = `${API_BASE_URL}/api/fe/${numeroFE}/export/a3dmaic`;
-  
-  const response = await fetch(url, { method: 'POST' });
-  if (!response.ok) {
-    throw new Error(`Erreur export: ${response.status}`);
-  }
-  
-  const data = await response.json();
-  return data.data; // { filename, path, relativePath, url }
-}
-
-/**
- * Exporter Alerte Qualité
- */
 export async function exportAlerteQualite(numeroFE, imagePath = null) {
-  const url = `${API_BASE_URL}/api/fe/${numeroFE}/export/alerte`;
-  
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ imagePath })
+  const site = getAllSitesFromJWT()[0] || "soucy";
+  const response = await fetch(`${API_BASE_URL}/api/fe/${numeroFE}/export/alerte?site=${site}`, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ imagePath }),
   });
-  
-  if (!response.ok) {
-    throw new Error(`Erreur export: ${response.status}`);
-  }
-  
-  const data = await response.json();
-  return data.data;
+  if (!response.ok) throw new Error(`Erreur export: ${response.status}`);
+  return (await response.json()).data;
 }
 
-/**
- * Exporter Clinique Qualité
- */
 export async function exportCliniqueQualite(numeroFE, qualiticien = "", participants = "") {
-  const url = `${API_BASE_URL}/api/fe/${numeroFE}/export/clinique`;
-  
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ qualiticien, participants })
+  const site = getAllSitesFromJWT()[0] || "soucy";
+  const response = await fetch(`${API_BASE_URL}/api/fe/${numeroFE}/export/clinique?site=${site}`, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ qualiticien, participants }),
   });
-  
-  if (!response.ok) {
-    throw new Error(`Erreur export: ${response.status}`);
-  }
-  
-  const data = await response.json();
-  return data.data;
+  if (!response.ok) throw new Error(`Erreur export: ${response.status}`);
+  return (await response.json()).data;
 }
 
-/**
- * Exporter Dérogation
- */
 export async function exportDerogation(numeroFE) {
-  const url = `${API_BASE_URL}/api/fe/${numeroFE}/export/derogation`;
-  
-  const response = await fetch(url, { method: 'POST' });
-  
-  if (!response.ok) {
-    throw new Error(`Erreur export: ${response.status}`);
-  }
-  
-  const data = await response.json();
-  return data.data;
+  const site = getAllSitesFromJWT()[0] || "soucy";
+  const response = await fetch(`${API_BASE_URL}/api/fe/${numeroFE}/export/derogation?site=${site}`, { method: "POST" });
+  if (!response.ok) throw new Error(`Erreur export: ${response.status}`);
+  return (await response.json()).data;
 }
 
-/**
- * Lister les exports existants pour une FE
- */
-export async function listExports(numeroFE) {
-  const url = `${API_BASE_URL}/api/fe/${numeroFE}/exports`;
-  
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`Erreur API: ${response.status}`);
-  }
-  
-  const data = await response.json();
-  return {
-    exports: data.data || [],
-    count: data.count || 0
-  };
-}
-
-// Export par défaut
-export default {
-  getAllFE,
-  searchFE,
-  getFEByNumero,
-  getStats,
-  exportA3Dmaic,
-  exportAlerteQualite,
-  exportCliniqueQualite,
-  exportDerogation,
-  listExports
-};
+export default { getAllFE, searchFE, getFEByNumero, getStats, exportAlerteQualite, exportCliniqueQualite, exportDerogation };
