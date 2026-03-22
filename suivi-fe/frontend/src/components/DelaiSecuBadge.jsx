@@ -1,7 +1,7 @@
 // src/components/DelaiSecuBadge.jsx
 // Affiche le délai sécurisation client : date_creation + 48h ouvrées
 import { useState } from "react";
-import { addHeuresOuvrees, heuresOuvreesRestantes } from "../../../backend/utils/heuresOuvrees.js";
+import { addHeuresOuvrees, heuresOuvreesRestantes } from "../utils/heuresOuvrees.js";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:4000";
 

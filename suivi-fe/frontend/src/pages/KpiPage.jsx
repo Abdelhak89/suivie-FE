@@ -10,6 +10,7 @@ import SourceToggle from "../components/SourceToggle.jsx";
 import StatCard from "../components/StatCard.jsx";
 import "../styles/app.css";
 import { getSiteFromJWT } from "../utils/auth.js";
+import { useContestees } from "../hooks/useContestees.js";
 
 const cleanKey = (k) => String(k || "").trim().replace(/\s+/g," ").replace(/\//g,"_").replace(/[.]/g,"").replace(/[%]/g,"pct");
 
@@ -73,7 +74,6 @@ const NIVO_THEME = {
 };
 const BAR_COLORS = ["#2563eb","#3b82f6","#60a5fa","#93c5fd"];
 
-// Enrichit une FE app pour les KPIs
 function enrichApp(fe) {
   return {
     ...fe,
@@ -108,7 +108,9 @@ export default function KpiPage() {
   const [fTypeDefaut, setFTypeDefaut] = useState("");
   const [drill,       setDrill]       = useState(null);
 
-  // Source SILOG
+  // ── Exclusion FE contestées ──────────────────────────────
+  const { excludeContestees, count: contestedCount } = useContestees();
+
   useEffect(() => {
     const ctrl = new AbortController();
     setLoadingDiap(true);
@@ -119,7 +121,6 @@ export default function KpiPage() {
     return () => ctrl.abort();
   }, [annee]);
 
-  // Source App
   const appFE = useAppFE("interne", { annee });
 
   const enrichedDiap = useMemo(() => allDiap.map(fe => ({
@@ -135,12 +136,14 @@ export default function KpiPage() {
 
   const enrichedApp = useMemo(() => appFE.items.map(enrichApp), [appFE.items]);
 
-  // Sélection de la source
+  // ── Source + exclusion contestées ───────────────────────
   const all = useMemo(() => {
-    if (source === "SILOG") return enrichedDiap;
-    if (source === "app")      return enrichedApp;
-    return [...enrichedDiap, ...enrichedApp];
-  }, [source, enrichedDiap, enrichedApp]);
+    let list;
+    if (source === "SILOG")    list = enrichedDiap;
+    else if (source === "app") list = enrichedApp;
+    else                       list = [...enrichedDiap, ...enrichedApp];
+    return excludeContestees(list);
+  }, [source, enrichedDiap, enrichedApp, excludeContestees]);
 
   const loading = source === "SILOG" ? loadingDiap : source === "app" ? appFE.loading : loadingDiap || appFE.loading;
 
@@ -182,7 +185,14 @@ export default function KpiPage() {
       <div className="pageHead">
         <div>
           <h2 className="h1">KPI Qualité</h2>
-          <div className="sub">{loading ? "Chargement…" : `${total} FE`} — filtres dynamiques + Pareto + drilldown</div>
+          <div className="sub" style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+            <span>{loading ? "Chargement…" : `${total} FE`} — filtres dynamiques + Pareto + drilldown</span>
+            {contestedCount > 0 && (
+              <span style={{ fontSize:11, padding:"2px 8px", borderRadius:10, background:"#fff8ed", color:"#d46b08", border:"1px solid #ffd591", fontWeight:600 }}>
+                {contestedCount} FE contestée{contestedCount>1?"s":""} exclue{contestedCount>1?"s":""}
+              </span>
+            )}
+          </div>
         </div>
         <SourceToggle
           source={source} onChange={s => { setSource(s); resetFilters(); }}
@@ -222,7 +232,6 @@ export default function KpiPage() {
       </div>
 
       <div style={{ display:"grid", gridTemplateColumns:"repeat(2, 1fr)", gap:14 }}>
-
         <ChartPanel title="Pareto — Îlot générateur (Top 10)" sub="Clique une barre pour voir le détail">
           <ResponsiveBar data={paretoIlot.map(d => ({ label:d.label, FE:d.value }))} keys={["FE"]} indexBy="label"
             margin={{ top:10, right:18, bottom:70, left:50 }} padding={0.25} enableLabel={false}
@@ -259,7 +268,6 @@ export default function KpiPage() {
               onClick={point => { const key = point?.data?.x; drillBy(`Détail — Période : ${key}`, x => (x._date?.slice(0,7)||"NA") === key); }} />
           </div>
         </ChartPanel>
-
       </div>
 
       {drill && (

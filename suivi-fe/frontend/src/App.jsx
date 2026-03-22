@@ -4,6 +4,7 @@ import SidebarLayout from "./layout/SidebarLayout.jsx";
 import LoginPage          from "./pages/LoginPage.jsx";
 import DeclarationFEPage  from "./pages/DeclarationFEPage.jsx";
 import ProtectedRoute     from "./components/ProtectedRoute.jsx";
+import RoleRoute          from "./components/RoleRoute.jsx";
 
 import InterneSeriePage    from "./pages/InterneSeriePage.jsx";
 import FournisseurPage     from "./pages/FournisseurPage.jsx";
@@ -18,6 +19,7 @@ import AllFePage           from "./pages/AllFePage.jsx";
 import AccueilProfilsPage  from "./pages/AccueilProfilsPage.jsx";
 import QualiticienPage     from "./pages/QualiticienPage.jsx";
 import GroupeTab           from "./pages/GroupeTab";
+import HistoriqueFEPage    from "./pages/HistoriqueFEPage";
 
 export default function App() {
   return (
@@ -36,7 +38,13 @@ export default function App() {
         <Route path="/accueil" element={<AccueilProfilsPage />} />
 
         <Route path="/qualiticien/:slug" element={<QualiticienPage />} />
-        <Route path="/manager"           element={<ManagerPage />} />
+
+        {/* ── Manager — responsable et admin uniquement ── */}
+        <Route path="/manager" element={
+          <RoleRoute roles={["responsable", "admin"]}>
+            <ManagerPage />
+          </RoleRoute>
+        } />
 
         <Route path="/interne-serie" element={<InterneSeriePage />} />
         <Route path="/fournisseur"   element={<FournisseurPage />} />
@@ -50,6 +58,7 @@ export default function App() {
         <Route path="/alerte-qualite"   element={<AlerteQualitePage />} />
         <Route path="/all-fe"           element={<AllFePage />} />
         <Route path="/declaration-fe"   element={<DeclarationFEPage />} />
+        <Route path="historique-fe"     element={<HistoriqueFEPage />} />
 
         <Route path="*" element={<div style={{ padding: 32 }}>404 - Page introuvable</div>} />
       </Route>

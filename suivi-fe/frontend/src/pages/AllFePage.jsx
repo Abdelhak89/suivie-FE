@@ -4,10 +4,13 @@ import { useSearchParams } from "react-router-dom";
 import { getAllFE } from "../services/feApi.js";
 import Analyse8DModal from "../components/Analyse8DModal.jsx";
 import Badge8D        from "../components/Badge8D.jsx";
+import DelaiSecuBadge from "../components/DelaiSecuBadge.jsx";
 import { getSiteFromJWT } from "../utils/auth.js";
 import { useAnalyses8D }  from "../hooks/useAnalyses8D.js";
 import { injectGlobalCSS, T } from "../styles/appleTokens.js";
 import axios from "axios";
+import FEBadge from "../components/FEBadge";
+import DemandeSuppressionModal from "../components/DemandeSuppressionModal.jsx";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:4000";
 
@@ -34,6 +37,87 @@ const statutBadge = s => {
   return "ap-badge-gray";
 };
 
+// ── Bouton contestation ───────────────────────────────────────
+function ContesterBtn({ fe, onContested }) {
+  const [loading,       setLoading]       = useState(false);
+  const [showMotif,     setShowMotif]     = useState(false);
+  const [motif,         setMotif]         = useState("");
+  const token = localStorage.getItem("kep_token");
+
+  const handleContester = async () => {
+    if (!fe?.id || !fe?.site) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`${API}/api/nc-fe/${fe.site.toLowerCase()}/contester`, {
+        method:  "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body:    JSON.stringify({ id: fe.id, motif }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        onContested({ ...fe, contestee: json.contestee, motif_contestation: json.motif_contestation });
+        setShowMotif(false);
+        setMotif("");
+      }
+    } catch { /* silencieux */ }
+    finally { setLoading(false); }
+  };
+
+  if (fe?.contestee) {
+    return (
+      <div style={{ display:"flex", flexDirection:"column", gap:3 }}>
+        <span style={{ display:"inline-flex", alignItems:"center", gap:4, padding:"2px 9px", borderRadius:10, fontSize:11, fontWeight:700, background:"#fff8ed", color:"#d46b08", border:"1px solid #ffd591" }}>
+          ⚡ Contestée
+        </span>
+        <button
+          onClick={() => { setMotif(""); handleContester(); }}
+          style={{ fontSize:10, color:"#888", background:"none", border:"none", cursor:"pointer", padding:0, textAlign:"left" }}
+        >
+          Annuler
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      {showMotif ? (
+        <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
+          <input
+            value={motif}
+            onChange={e => setMotif(e.target.value)}
+            placeholder="Motif (optionnel)…"
+            style={{ padding:"4px 8px", borderRadius:6, border:"1px solid #d9d9d9", fontSize:12, width:160 }}
+            autoFocus
+          />
+          <div style={{ display:"flex", gap:4 }}>
+            <button
+              onClick={handleContester}
+              disabled={loading}
+              style={{ padding:"3px 10px", borderRadius:6, border:"none", background:"#d46b08", color:"#fff", fontSize:11, fontWeight:700, cursor:"pointer" }}
+            >
+              {loading ? "…" : "Confirmer"}
+            </button>
+            <button
+              onClick={() => setShowMotif(false)}
+              style={{ padding:"3px 8px", borderRadius:6, border:"1px solid #d9d9d9", background:"#fff", fontSize:11, cursor:"pointer" }}
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          onClick={() => setShowMotif(true)}
+          style={{ padding:"3px 10px", borderRadius:6, border:"1px solid #ffd591", background:"#fff8ed", color:"#d46b08", fontSize:11, fontWeight:600, cursor:"pointer" }}
+        >
+          Contester
+        </button>
+      )}
+    </div>
+  );
+}
+
 export default function AllFePage() {
   const [sp]  = useSearchParams();
   const annee = sp.get("annee") ?? "2026";
@@ -43,8 +127,10 @@ export default function AllFePage() {
   const [loading,    setLoading]    = useState(true);
   const [modal8D,    setModal8D]    = useState({ open: false, fe: null, value: "" });
   const { map: analyses8D, update: updateAnalyses8D } = useAnalyses8D();
-  const [filtre,     setFiltre]     = useState("tous"); // tous | silog | app
+  const [filtre,     setFiltre]     = useState("tous");
   const [q,          setQ]          = useState("");
+  const [feCountMap,   setFeCountMap]   = useState({});
+  const [demandeModal, setDemandeModal] = useState(null); // fe
 
   const token = localStorage.getItem("kep_token");
   const site  = getSiteFromJWT();
@@ -56,11 +142,9 @@ export default function AllFePage() {
     setLoading(true);
 
     Promise.allSettled([
-      // SILOG
       getAllFE({ annee: annee || null, limit: 200 })
         .then(r => setSilog((r.items || []).map(fe => ({ ...fe, source: "silog" })))),
 
-      // App KEP
       axios.get(`${API}/api/nc-fe/all`, { headers: { Authorization: `Bearer ${token}` } })
         .then(r => setAppFE((r.data.items || []).map(fe => ({ ...fe, source: "app" })))),
 
@@ -68,6 +152,33 @@ export default function AllFePage() {
 
     return () => ctrl.abort();
   }, [annee]);
+
+  useEffect(() => {
+    const siteKey = site?.toLowerCase() || "soucy";
+    fetch(`${API}/api/fe/par-article?site=${siteKey}`)
+      .then(r => r.json())
+      .then(json => {
+        if (!json.success) return;
+        const map = {};
+        for (const row of json.data) {
+          map[row.code_article] = { total: row.total, en_cours: row.en_cours };
+        }
+        setFeCountMap(map);
+      })
+      .catch(() => {});
+  }, [site]);
+
+  // Mise à jour locale après contestation
+  const handleContested = (updatedFe) => {
+    setAppFE(prev => prev.map(fe =>
+      fe.id === updatedFe.id ? { ...fe, contestee: updatedFe.contestee, motif_contestation: updatedFe.motif_contestation } : fe
+    ));
+  };
+
+  // Mise à jour locale après calcul délai
+  const handleDelaiCalculated = (feId, delai) => {
+    setAppFE(prev => prev.map(fe => fe.id === feId ? { ...fe, delai_securisation: delai } : fe));
+  };
 
   const allItems = useMemo(() => {
     let list = filtre === "silog" ? silog : filtre === "app" ? appFE : [...silog, ...appFE];
@@ -136,43 +247,102 @@ export default function AllFePage() {
                 <th className="ap-th">Statut</th>
                 <th className="ap-th">Qté NC</th>
                 <th className="ap-th">Date</th>
+                <th className="ap-th">Délai sécu</th>
                 <th className="ap-th">Avancement 8D</th>
               </tr>
             </thead>
             <tbody>
               {allItems.map((fe, i) => {
                 const feEnrichi = { ...fe, analyse_8d: analyses8D[fe.numero_fe] || fe.analyse_8d };
+                const counts    = feCountMap[fe.code_article];
+                const isApp     = fe.source === "app";
                 return (
-                  <tr key={`${fe.source}-${fe.numero_fe}-${i}`} className="ap-tr-hover">
+                  <tr key={`${fe.source}-${fe.numero_fe}-${i}`} className="ap-tr-hover"
+                    style={{ opacity: fe.contestee ? 0.6 : 1 }}>
+
                     <td className="ap-td">
                       <button onClick={() => open8D(feEnrichi)} style={{ background:"none", border:"none", cursor:"pointer", fontWeight:700, color:T.accent, fontSize:13, padding:0, fontFamily:T.font }}>
                         {fe.numero_fe || "—"}
                       </button>
+                      {fe.contestee && (
+                        <div style={{ fontSize:10, color:"#d46b08", fontWeight:600, marginTop:2 }}>
+                          ⚡ Contestée{fe.motif_contestation ? ` — ${fe.motif_contestation}` : ""}
+                        </div>
+                      )}
                     </td>
+
                     <td className="ap-td"><SourceBadge source={fe.source} site={fe.site} /></td>
-                    <td className="ap-td" style={{ fontSize:12, color:T.textSecond }}>{fe.code_article || "—"}</td>
-                    <td className="ap-td"><span className={`ap-badge ${statutBadge(fe.statut)}`}>{fe.statut || "—"}</span></td>
+
+                    <td className="ap-td">
+                      <div style={{ display:"flex", alignItems:"center", gap:6, flexWrap:"wrap" }}>
+                        <span style={{ fontFamily:"monospace", fontSize:11, color:T.textSecond }}>
+                          {fe.code_article || "—"}
+                        </span>
+                        {counts && (
+                          <FEBadge
+                            codeArticle={fe.code_article}
+                            count={counts.total}
+                            enCours={counts.en_cours}
+                            site={site?.toLowerCase() || "soucy"}
+                            designation={fe.designation_article || fe.designation || ""}
+                          />
+                        )}
+                      </div>
+                    </td>
+
+                    <td className="ap-td">
+                      <span className={`ap-badge ${statutBadge(fe.statut)}`}>{fe.statut || "—"}</span>
+                    </td>
+
                     <td className="ap-td" style={{ fontWeight:600 }}>
                       {fe.qte_non_conforme ? Number(fe.qte_non_conforme).toLocaleString("fr-FR") : fe.quantite || "—"}
                     </td>
+
                     <td className="ap-td" style={{ color:T.textSecond, fontSize:12 }}>
                       {fe.date_creation ? new Date(fe.date_creation).toLocaleDateString("fr-FR") : "—"}
                     </td>
+
+                    {/* ── Délai sécurisation — FE App uniquement ── */}
                     <td className="ap-td">
-                      <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                      {isApp ? (
+                        <DelaiSecuBadge
+                          fe={fe}
+                          site={fe.site?.toLowerCase()}
+                          onCalculate={(delai) => handleDelaiCalculated(fe.id, delai)}
+                        />
+                      ) : <span style={{ fontSize:11, color:T.textLight }}>—</span>}
+                    </td>
+
+                    <td className="ap-td">
+                      <div style={{ display:"flex", alignItems:"center", gap:6, flexWrap:"wrap" }}>
                         <Badge8D fe={feEnrichi} />
                         {fe.source === "silog" && (
                           <button className="ap-btn" style={{ padding:"3px 9px", fontSize:11 }} onClick={() => open8D(feEnrichi)}>
                             8D
                           </button>
                         )}
+                        {/* Contestation — FE App uniquement */}
+                        {isApp && (
+                          <ContesterBtn fe={fe} onContested={handleContested} />
+                        )}
+                        {/* Demande suppression — FE App uniquement */}
+                        {isApp && (
+                          <button
+                            onClick={() => setDemandeModal(fe)}
+                            title="Demander la suppression"
+                            style={{ padding:"3px 8px", borderRadius:6, border:"1.5px solid rgba(255,59,48,0.3)", background:"#fff0ef", color:"#ff3b30", fontSize:11, cursor:"pointer", fontWeight:600 }}
+                          >
+                            🗑️
+                          </button>
+                        )}
                       </div>
                     </td>
+
                   </tr>
                 );
               })}
               {!allItems.length && (
-                <tr><td className="ap-td" colSpan={7} style={{ textAlign:"center", color:T.textLight, padding:40 }}>Aucune FE trouvée</td></tr>
+                <tr><td className="ap-td" colSpan={8} style={{ textAlign:"center", color:T.textLight, padding:40 }}>Aucune FE trouvée</td></tr>
               )}
             </tbody>
           </table>
@@ -185,6 +355,18 @@ export default function AllFePage() {
         onCancel={() => setModal8D({ open: false, fe: null, value: "" })}
         onSave={handleSave8D}
       />
+
+      {demandeModal && (
+        <DemandeSuppressionModal
+          fe={demandeModal}
+          onClose={() => setDemandeModal(null)}
+          onSent={() => {
+            // Marque localement la FE comme "demande en attente"
+            setAppFE(prev => prev.map(f => f.id === demandeModal.id ? { ...f, _demande_suppression: true } : f));
+            setDemandeModal(null);
+          }}
+        />
+      )}
     </div>
   );
 }

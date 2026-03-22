@@ -14,6 +14,10 @@ import { injectGlobalCSS, T } from "../styles/appleTokens.js";
 const GRAVITE_BADGE = { mineur:"ap-badge-green", majeur:"ap-badge-orange", critique:"ap-badge-red" };
 const STATUT_BADGE  = { ouvert:"ap-badge-blue", en_cours:"ap-badge-orange", clos:"ap-badge-green" };
 
+// Client = 3 premiers chiffres du code article
+function getClientCode(fe) { return (fe.code_article || "").slice(0, 3) || "—"; }
+function getClientName(fe) { return fe.client_fourn || fe.client_programme || getClientCode(fe); }
+
 export default function InterneSeriePage() {
   const config = PAGES["interne-serie"];
   const gp     = useGridPage({ origine: "CINT", config });
@@ -64,25 +68,41 @@ export default function InterneSeriePage() {
           <thead>
             <tr>
               <th className="ap-th">N° FE</th>
+              <th className="ap-th">Client</th>
+              <th className="ap-th">Article</th>
               <th className="ap-th">Statut</th>
               <th className="ap-th">Qté NC</th>
               {isApp && <th className="ap-th">Gravité</th>}
               {isApp && <th className="ap-th">Déclarant</th>}
               <th className="ap-th">Avancement 8D</th>
-              <th className="ap-th">Action</th>
+              {!isApp && <th className="ap-th">Action</th>}
             </tr>
           </thead>
           <tbody>
             {rows.map((fe, idx) => {
-              const feEnrichi = isApp ? fe : { ...fe, analyse_8d: analyses8D[fe.numero_fe] || fe.analyse_8d };
+              const feEnrichi    = isApp ? fe : { ...fe, analyse_8d: analyses8D[fe.numero_fe] || fe.analyse_8d };
+              const clientCode   = getClientCode(fe);
+              const clientName   = getClientName(fe);
               return (
                 <tr key={fe.numero_fe || fe.id || idx} className="ap-tr-hover">
                   <td className="ap-td">
                     <button onClick={() => open8D(feEnrichi)} style={{ background:"none", border:"none", cursor:"pointer", fontWeight:700, color:"#0071e3", fontSize:13, padding:0, fontFamily:"inherit" }}>
                       {fe.numero_fe || "—"}
                     </button>
-                    <div style={{ fontSize:12, color:T.textSecond, marginTop:2 }}>
+                    <div style={{ fontSize:11, color:T.textSecond, marginTop:2 }}>
                       {fe.date_creation ? new Date(fe.date_creation).toLocaleDateString("fr-FR") : ""}
+                    </div>
+                  </td>
+                  {/* Colonne Client */}
+                  <td className="ap-td">
+                    <div style={{ fontWeight:600, fontSize:12 }}>{clientName}</div>
+                    <div style={{ fontSize:10, color:T.textLight, fontFamily:"monospace" }}>{clientCode}</div>
+                  </td>
+                  {/* Article — désignation article (pas du défaut) */}
+                  <td className="ap-td" style={{ fontSize:12, color:T.textSecond }}>
+                    <div style={{ fontFamily:"monospace", fontSize:11 }}>{fe.code_article || "—"}</div>
+                    <div style={{ fontSize:11, color:T.textLight, maxWidth:160, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }} title={fe.designation}>
+                      {fe.designation || ""}
                     </div>
                   </td>
                   <td className="ap-td">
@@ -98,18 +118,18 @@ export default function InterneSeriePage() {
                   <td className="ap-td">
                     {isApp ? <span style={{ fontSize:12, color:T.textLight }}>—</span> : <Badge8D fe={feEnrichi} />}
                   </td>
-                  <td className="ap-td">
-                    {!isApp && (
+                  {!isApp && (
+                    <td className="ap-td">
                       <button className="ap-btn ap-btn-primary" style={{ padding:"4px 12px", fontSize:11 }} onClick={() => open8D(feEnrichi)}>
                         Analyse 8D
                       </button>
-                    )}
-                  </td>
+                    </td>
+                  )}
                 </tr>
               );
             })}
             {!rows.length && !loading && (
-              <tr><td className="ap-td" colSpan={7} style={{ textAlign:"center", padding:40, color:T.textLight }}>
+              <tr><td className="ap-td" colSpan={9} style={{ textAlign:"center", padding:40, color:T.textLight }}>
                 Aucune FE {isApp ? "dans l'app" : "SILOG"}
               </td></tr>
             )}

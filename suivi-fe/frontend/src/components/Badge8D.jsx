@@ -2,6 +2,7 @@
 // Badge unifié — affiche le % réel calculé depuis les données 8D
 import { compute8DProgress, parse8DData } from "../utils/compute8DProgress.js";
 
+
 export default function Badge8D({ fe }) {
   const raw  = fe?.analyse_8d;
   const data = parse8DData(raw);

@@ -1,0 +1,571 @@
+/* ══════════════════════════════════════════
+   SUIVI-FE — mobile.css
+   Responsive tablette + téléphone
+   Importer dans main.jsx après index.css
+   ══════════════════════════════════════════ */
+
+/* ════════════════════════════════
+   META viewport (à mettre dans index.html)
+   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+   ════════════════════════════════ */
+
+/* ════════════════════════════════
+   TOUCH — taille minimale des zones cliquables
+   ════════════════════════════════ */
+@media (max-width: 1050px) {
+  button, .btn, .ap-btn,
+  .navItem, .ap-chip, .ap-rpill,
+  select, .ap-select, .select,
+  input[type="date"], input[type="number"], input[type="text"], input[type="email"] {
+    min-height: 44px; /* recommandation Apple HIG */
+  }
+
+  /* Padding global réduit */
+  .container { padding: 12px 14px; }
+}
+
+/* ════════════════════════════════
+   TABLETTE (600px – 1050px)
+   ════════════════════════════════ */
+@media (min-width: 600px) and (max-width: 1050px) {
+  .main { padding-top: 64px; }
+
+  .grid4, .ap-grid4 { grid-template-columns: repeat(2, 1fr); }
+  .grid3, .ap-grid3 { grid-template-columns: repeat(2, 1fr); }
+
+  /* Tables : scroll horizontal fluide */
+  .tableWrap, .ap-table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Toolbar : wrap propre */
+  .toolbar, .ap-toolbar {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  /* Déclaration FE — cards côte à côte */
+  .decl-type-btn { min-height: 56px; }
+
+  /* Modales full screen sur tablette */
+  .ap-backdrop .modal,
+  .modalBackdrop .modal {
+    width: 95vw;
+    max-height: 90vh;
+  }
+}
+
+/* ════════════════════════════════
+   MOBILE (< 600px)
+   ════════════════════════════════ */
+@media (max-width: 600px) {
+  .main { padding-top: 60px; }
+
+  /* Layout */
+  .pageHead, .ap-page-head { flex-direction: column; gap: 10px; }
+  .h1, .ap-h1 { font-size: 18px; }
+
+  /* Grids 1 colonne sauf stat cards */
+  .grid2, .grid3, .ap-grid2, .ap-grid3 { grid-template-columns: 1fr; }
+  .grid4, .ap-grid4 { grid-template-columns: 1fr 1fr; }
+
+  /* Toolbar vertical */
+  .toolbar, .ap-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    padding: 10px;
+  }
+  .toolbar .input, .toolbar .select,
+  .ap-toolbar .ap-input, .ap-toolbar .ap-select { min-width: unset; width: 100%; }
+  .toolbar .btn, .ap-toolbar .ap-btn { width: 100%; justify-content: center; }
+
+  /* Tables scroll */
+  .tableWrap, .ap-table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border-radius: 10px;
+  }
+
+  /* Table colonnes masquées sur mobile */
+  .ap-th.hide-mobile, .ap-td.hide-mobile { display: none; }
+
+  /* Panels */
+  .panel, .ap-card { padding: 12px; border-radius: 10px; }
+
+  /* Buttons */
+  .btn, .ap-btn { padding: 11px 16px; font-size: 14px; border-radius: 10px; justify-content: center; }
+
+  /* Inputs */
+  .input, .select, .ap-input, .ap-select, .ap-textarea {
+    padding: 11px 13px;
+    font-size: 15px;
+    border-radius: 10px;
+  }
+
+  /* Déclaration FE */
+  .decl-step-nav { flex-direction: row; }
+  .decl-step     { padding: 10px 10px; }
+  .decl-step-num { width: 26px; height: 26px; font-size: 12px; }
+
+  /* Source toggle */
+  .source-toggle { flex-direction: row; }
+
+  /* Modales plein écran */
+  .ap-backdrop,
+  .modalBackdrop {
+    padding: 0;
+    align-items: flex-end;
+  }
+  .ap-backdrop .modal,
+  .modalBackdrop .modal {
+    width: 100vw;
+    max-height: 92vh;
+    border-radius: 20px 20px 0 0;
+    margin: 0;
+  }
+
+  /* Analyse 8D : modale full screen */
+  div[style*="90vw"] {
+    width: 100vw !important;
+    height: 100vh !important;
+    border-radius: 0 !important;
+  }
+
+  /* Page déclaration FE */
+  .decl-defaut-card { padding: 12px; }
+
+  /* Stat cards */
+  .statCard, .ap-stat { padding: 12px; }
+  .statCard__value, .ap-stat-value { font-size: 24px; }
+}
+
+/* ════════════════════════════════
+   CAMERA — inputs photo
+   On s'assure que tous les inputs photo
+   ouvrent l'appareil photo sur mobile
+   ════════════════════════════════ */
+
+/* Zone photo touch-friendly */
+.photo-capture-zone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100px;
+  border: 2px dashed rgba(0,113,227,0.3);
+  border-radius: 12px;
+  background: rgba(0,113,227,0.04);
+  cursor: pointer;
+  padding: 16px;
+  gap: 8px;
+  transition: all 0.15s;
+}
+.photo-capture-zone:active { background: rgba(0,113,227,0.08); }
+
+.photo-capture-icon { font-size: 32px; }
+.photo-capture-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #0071e3;
+}
+.photo-capture-sub {
+  font-size: 11px;
+  color: #aeaeb2;
+}
+
+/* Bouton photo grand format sur mobile */
+@media (max-width: 600px) {
+  .a8d-photo-add-btn,
+  .fiche-photo-add,
+  .form-upload-zone {
+    min-height: 80px;
+    font-size: 14px;
+  }
+
+  /* Thumbnails photos plus grandes sur mobile */
+  .a8d-photo-thumb { width: 100px; height: 100px; }
+  .a8d-photos-grid { gap: 8px; }
+}
+
+/* ════════════════════════════════
+   SAFE AREA — iPhone avec notch
+   ════════════════════════════════ */
+@supports (padding: max(0px)) {
+  .main {
+    padding-left: max(0px, env(safe-area-inset-left));
+    padding-right: max(0px, env(safe-area-inset-right));
+    padding-bottom: max(0px, env(safe-area-inset-bottom));
+  }
+  .hamburger {
+    left: max(12px, calc(env(safe-area-inset-left) + 12px));
+    top:  max(12px, calc(env(safe-area-inset-top)  + 12px));
+  }
+}
+
+/* ════════════════════════════════
+   PWA — affichage standalone
+   ════════════════════════════════ */
+@media (display-mode: standalone) {
+  .main { padding-top: 80px; } /* espace status bar */
+}
+
+/* ════════════════════════════════
+   LOGIN PAGE
+   ════════════════════════════════ */
+@media (max-width: 700px) {
+  /* Grille 2col → 1col */
+  :root { --login-cols: 1fr; }
+
+  /* Header login */
+  header { padding: 14px 16px !important; }
+
+  /* Main centrage */
+  main { padding: 16px !important; }
+
+  /* Bloc login : arrondi en haut seulement sur mobile */
+  main > div > div {
+    border-radius: 14px !important;
+    overflow: hidden;
+  }
+
+  /* Partie gauche (déclaration) réduite */
+  main > div > div > div:first-child {
+    padding: 24px 20px !important;
+    border-right: none !important;
+    border-bottom: 1px solid rgba(255,255,255,0.1) !important;
+  }
+
+  /* Partie droite (login form) */
+  main > div > div > div:last-child {
+    padding: 24px 20px !important;
+  }
+}
+
+/* ════════════════════════════════
+   ALL FE PAGE / GRID PAGES
+   ════════════════════════════════ */
+@media (max-width: 768px) {
+  /* Cacher colonnes peu utiles sur mobile */
+  .ap-th:nth-child(n+6),
+  .ap-td:nth-child(n+6) {
+    display: none;
+  }
+
+  /* Source toggle : horizontal scroll */
+  .source-toggle-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Page head : boutons en bas */
+  .ap-page-head {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .ap-page-head > div:last-child {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+}
+
+/* ════════════════════════════════
+   DÉCLARATION FE
+   ════════════════════════════════ */
+@media (max-width: 600px) {
+  /* Steps nav compact */
+  .decl-step-nav { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .decl-step     { min-width: 100px; padding: 10px 8px; }
+
+  /* Type NC buttons : 2 par ligne */
+  .decl-type-btn { flex-direction: column; text-align: center; padding: 14px 10px; }
+
+  /* Grille détection : 1 col */
+  div[style*="repeat(auto-fit, minmax(200px"] { grid-template-columns: 1fr !important; }
+  div[style*="repeat(auto-fit, minmax(180px"] { grid-template-columns: 1fr 1fr !important; }
+
+  /* Multi OF : colonnes réduites */
+  div[style*="1fr 2fr"] { grid-template-columns: 1fr !important; }
+
+  /* Quantités : 1 col */
+  div[style*="repeat(auto-fit, minmax(200px"] { grid-template-columns: 1fr !important; }
+}
+
+/* ════════════════════════════════
+   ANALYSE 8D MODAL
+   ════════════════════════════════ */
+@media (max-width: 768px) {
+  /* Modale plein écran */
+  div[style*="90vw"][style*="88vh"] {
+    width: 100vw !important;
+    height: 100vh !important;
+    max-height: 100vh !important;
+    border-radius: 0 !important;
+  }
+
+  /* Header 8D : compact */
+  div[style*="90vw"][style*="88vh"] > div:first-child {
+    padding: 10px 12px 0 !important;
+  }
+
+  /* Nav D3-D8 : scroll horizontal */
+  div[style*="overflow-x: auto"] { flex-wrap: nowrap; }
+
+  /* Nav buttons : plus petits */
+  .a8d-nav-btn { min-width: 80px; padding: 6px 8px; }
+
+  /* Body 8D : padding réduit */
+  div[style*="28px 28px 60px"] { padding: 16px 14px 40px !important; }
+
+  /* 6M grid : 1 col */
+  .a8d-6m-grid { grid-template-columns: 1fr !important; }
+
+  /* Actions header : wrap */
+  div[style*="90vw"] .a8d-btn { padding: 6px 10px; font-size: 12px; }
+}
+
+/* ════════════════════════════════
+   KPI PAGE
+   ════════════════════════════════ */
+@media (max-width: 768px) {
+  /* Charts : 1 colonne */
+  div[style*="repeat(2, 1fr)"] { grid-template-columns: 1fr !important; }
+
+  /* Toolbar filtres : vertical */
+  .toolbar { flex-direction: column; }
+  .toolbar .select, .toolbar .selectWide { min-width: unset; width: 100%; }
+}
+
+/* ════════════════════════════════
+   ALERTE QUALITÉ / DÉROGATION
+   (layout sidebar+main)
+   ════════════════════════════════ */
+@media (max-width: 768px) {
+  /* Split layout → stack vertical */
+  .aq, .dero {
+    flex-direction: column !important;
+    height: auto !important;
+  }
+
+  .aq-side, .dero-side {
+    width: 100% !important;
+    height: auto !important;
+    border-right: none !important;
+    border-bottom: 1px solid rgba(0,0,0,0.08) !important;
+    position: relative !important;
+  }
+
+  .aq-main, .dero-main {
+    height: auto !important;
+    min-height: 60vh;
+  }
+
+  .aq-scroll, .dero-scroll { height: auto !important; overflow: visible !important; }
+
+  /* Topbar : wrap */
+  .aq-topbar, .dero-topbar { flex-wrap: wrap; gap: 8px; }
+
+  /* Fiche doc : padding réduit */
+  .fiche-wrap { padding: 10px !important; }
+  .fiche-body { padding: 0 !important; }
+  .fiche-grid { grid-template-columns: 1fr !important; }
+  .fiche-grid.cols3 { grid-template-columns: 1fr !important; }
+
+  /* Photos comparatives : 1 col */
+  div[style*="gridTemplateColumns: \"1fr 1fr\""] { grid-template-columns: 1fr !important; }
+}
+
+/* ════════════════════════════════
+   MANAGER PAGE
+   ════════════════════════════════ */
+@media (max-width: 768px) {
+  /* Table users : colonnes masquées */
+  .manager-table th:nth-child(n+4),
+  .manager-table td:nth-child(n+4) { display: none; }
+
+  /* Formulaire user : 1 col */
+  div[style*="grid-template-columns: \"1fr 1fr\""] { grid-template-columns: 1fr !important; }
+}
+
+
+
+/* ════════════════════════════════
+   TABLES MOBILE — 1 seule colonne
+   N° FE uniquement, tap pour ouvrir 8D
+   ════════════════════════════════ */
+@media (max-width: 600px) {
+
+  /* Masquer toutes les colonnes sauf la 1ère */
+  .ap-table thead tr .ap-th:not(:first-child),
+  .ap-table tbody tr .ap-td:not(:first-child) {
+    display: none !important;
+  }
+
+  /* Première colonne : pleine largeur, touch-friendly */
+  .ap-table thead tr .ap-th:first-child,
+  .ap-table tbody tr .ap-td:first-child {
+    width: 100%;
+    padding: 14px 16px;
+  }
+
+  /* Ligne : bien espacée pour le touch */
+  .ap-tr-hover { min-height: 52px; }
+
+  /* Numéro FE : plus grand et cliquable */
+  .ap-td:first-child button {
+    font-size: 15px !important;
+    font-weight: 800 !important;
+    color: #0071e3 !important;
+    padding: 8px 0 !important;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+  }
+
+  /* Hint visuel "tap pour ouvrir" */
+  .ap-tr-hover .ap-td:first-child::after {
+    content: " →";
+    font-size: 14px;
+    color: #aeaeb2;
+    margin-left: 4px;
+  }
+
+  /* Message vide centré */
+  .ap-td[colspan] { text-align: center; }
+
+  /* Pagination : simplifiée */
+  .ap-pagination { font-size: 14px; gap: 20px; }
+}
+
+/* ════════════════════════════════
+   ANALYSE 8D — VERSION MOBILE
+   ════════════════════════════════ */
+@media (max-width: 768px) {
+
+  /* Modale plein écran */
+  div[style*="90vw"][style*="88vh"],
+  div[style*="90vw"][style*="maxWidth:1100"] {
+    width: 100vw !important;
+    height: 100vh !important;
+    max-width: 100vw !important;
+    max-height: 100vh !important;
+    border-radius: 0 !important;
+    resize: none !important;
+  }
+
+  /* Header 8D compact */
+  .a8d-topbar-row {
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 10px 12px 0 !important;
+  }
+
+  /* Titre + statut */
+  .a8d-title-block { flex: 1 1 100%; min-width: 0; }
+
+  /* Barre avancement : masquée sur mobile */
+  .a8d-progress-bar-wrap { display: none !important; }
+
+  /* Boutons header : réduits + scroll horizontal */
+  .a8d-header-actions {
+    display: flex !important;
+    gap: 6px !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    padding-bottom: 4px !important;
+    flex-wrap: nowrap !important;
+    width: 100% !important;
+  }
+
+  /* Boutons header plus petits */
+  .a8d-header-actions .a8d-btn {
+    padding: 6px 10px !important;
+    font-size: 11px !important;
+    white-space: nowrap !important;
+    flex-shrink: 0 !important;
+  }
+
+  /* Nav D3-D8 : scroll horizontal */
+  div[style*="overflow-x: auto"],
+  div[style*="overflowX:\"auto\""] {
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    padding-bottom: 8px !important;
+  }
+
+  /* Boutons nav D3-D8 plus compacts */
+  .a8d-nav-btn {
+    min-width: 72px !important;
+    padding: 8px 8px !important;
+    flex-shrink: 0 !important;
+  }
+  .a8d-nav-btn .a8d-nav-label { font-size: 11px !important; }
+
+  /* Body 8D : padding réduit */
+  .a8d-scroll { padding: 16px 12px 40px !important; }
+
+  /* Cards 8D full width */
+  .a8d-card {
+    padding: 14px 12px !important;
+    border-radius: 10px !important;
+  }
+
+  /* 6M grid : 1 colonne */
+  .a8d-6m-grid { grid-template-columns: 1fr !important; }
+
+  /* Actions D6 : 1 colonne */
+  .a8d-action-card div[style*="3fr"] {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Responsable select : 1 colonne */
+  div[style*="flex:\"1 1 160px\""] { flex: 1 1 100% !important; }
+
+  /* Chips wrap */
+  .a8d-chip { padding: 8px 12px !important; font-size: 13px !important; min-height: 40px !important; }
+
+  /* Radio pills : wrap */
+  div[style*="display:\"flex\""] .a8d-rpill { font-size: 13px !important; padding: 8px 14px !important; min-height: 40px !important; }
+
+  /* Photos : plus grandes */
+  .a8d-photo-thumb { width: 90px !important; height: 90px !important; }
+  .a8d-photo-add-btn { width: 90px !important; height: 90px !important; font-size: 11px !important; }
+
+  /* Causal tree bouton : pleine largeur */
+  button[style*="linear-gradient(135deg,#ff3b30"] {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+
+  /* D8 récap grid : 1 colonne */
+  div[style*="gridTemplateColumns:\"1fr 1fr\""] {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Boutons bas de section : pleine largeur */
+  .a8d-card > div[style*="justifyContent:\"flex-end\""] {
+    flex-direction: column !important;
+  }
+  .a8d-card > div[style*="justifyContent:\"flex-end\""] .a8d-btn {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+
+  /* Lightbox photo : plein écran */
+  div[style*="99999"] > img {
+    max-width: 100vw !important;
+    max-height: 100vh !important;
+    border-radius: 0 !important;
+  }
+}
+
+/* Extra petit (< 400px) */
+@media (max-width: 400px) {
+  .a8d-nav-btn { min-width: 60px !important; }
+  .a8d-nav-btn .a8d-nav-label { display: none !important; }
+  .a8d-nav-icon { font-size: 18px !important; }
+}

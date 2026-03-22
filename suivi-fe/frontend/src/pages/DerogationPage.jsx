@@ -5,6 +5,7 @@ import { useAppFE } from "../hooks/useAppFE.js";
 import SourceToggle from "../components/SourceToggle.jsx";
 import "../styles/DerogationPage.css";
 import { getSiteFromJWT } from "../utils/auth.js";
+import { useContestees } from "../hooks/useContestees.js";
 
 /* ── Helpers ── */
 function toIsoShort(v) {
@@ -314,6 +315,7 @@ export default function DerogationPage() {
   const [feData,     setFeData]     = useState(null);
   const [ficheData,  setFicheData]  = useState(null);
   const [mailOpen,   setMailOpen]   = useState(false);
+  const { excludeContestees } = useContestees();
 
   // Source SILOG
   useEffect(() => {
@@ -335,11 +337,12 @@ export default function DerogationPage() {
   const activeItems = source === "app" ? appFE.items : items;
   const activeLoading = source === "app" ? appFE.loading : loading;
 
-  const filtered = useMemo(() => {
-    if (!q.trim()) return activeItems;
-    const s = q.toLowerCase();
-    return activeItems.filter(fe => [fe.numero_fe, fe.code_article, fe.designation, fe.code_lancement, fe.numero_of].some(v => v?.toLowerCase().includes(s)));
-  }, [activeItems, q]);
+const filtered = useMemo(() => {
+  const base = excludeContestees(activeItems);
+  if (!q.trim()) return base;
+  const s = q.toLowerCase();
+  return base.filter(fe => [fe.numero_fe, fe.code_article, fe.designation, fe.code_lancement, fe.numero_of].some(v => v?.toLowerCase().includes(s)));
+}, [activeItems, q, excludeContestees]);
 
   const selectFe = async num => {
     if (!num) return;

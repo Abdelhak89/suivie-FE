@@ -72,6 +72,18 @@ router.get("/stats", async (req, res) => {
   }
 });
 
+router.get("/par-article", async (req, res) => {
+  try {
+    const { site = "soucy" } = req.query;
+    const siteKey = VALID_SITES.includes(site?.toLowerCase()) ? site.toLowerCase() : "soucy";
+    const data = await feService.getFECountParArticle(siteKey);
+    res.json({ success: true, data, count: data.length, site: siteKey });
+  } catch (error) {
+    console.error("Erreur GET /api/fe/par-article:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 router.get("/:numero", async (req, res) => {
   try {
     const { numero } = req.params;

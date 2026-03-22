@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { getAllFE, getFEByNumero } from "../services/feApi.js";
 import { useAppFE } from "../hooks/useAppFE.js";
 import "../styles/AlerteQualitePage.css";
+import { useContestees } from "../hooks/useContestees.js";
 
 const PRINT_CSS = `
 @media print {
@@ -150,6 +151,7 @@ function FicheDocument({ data, onChange, onAddPhotoOk, onAddPhotoNok, onDelPhoto
   const photos_ok = data.photos_ok || [], photos_nok = data.photos_nok || [];
   const gravite   = data.gravite || "";
   const handleSave = () => { setEditing(false); setSaved(true); setTimeout(() => setSaved(false), 2000); };
+  
   return (
     <div className="fiche-wrap">
       <div style={{ display:"flex", justifyContent:"flex-end", marginBottom:10, gap:8 }}>
@@ -338,6 +340,7 @@ export default function AlerteQualitePage() {
   const [feData,      setFeData]      = useState(null);
   const [ficheData,   setFicheData]   = useState(null);
   const [mailOpen,    setMailOpen]    = useState(false);
+  const { excludeContestees } = useContestees();
 
   // ── Source toggle ─────────────────────────────────────────
   const [feSource, setFeSource] = useState("SILOG");
@@ -358,6 +361,7 @@ export default function AlerteQualitePage() {
   }, [annee, feType]);
 
   const filtered = useMemo(() => {
+    const base = excludeContestees(items);
     if (!q.trim()) return items;
     const s = q.toLowerCase();
     return items.filter(fe => [fe.numero_fe, fe.code_article, fe.designation, fe.code_lancement].some(v => v?.toLowerCase().includes(s)));
@@ -365,7 +369,7 @@ export default function AlerteQualitePage() {
 
   // Liste active selon source
   const activeItems = feSource === "app"
-    ? appFE.items.map(fe => ({
+    ? excludeContestees(appFE.items).map(fe => ({
         numero_fe:      fe.numero_fe,
         code_article:   fe.code_article,
         designation:    fe.description || fe.designation,

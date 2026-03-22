@@ -6,8 +6,9 @@ import {
   ACTIONS_IMMEDIATES, VERIF_EFFICACITE,
 } from "../data/ncData.js";
 import CausalTreeModal from "./CausalTreeModal";
+import GroupeTravail   from "./GroupeTravail.jsx";
+import { export8DPdf } from "../utils/export8DPdf.js";
 import { use8D } from "../hooks/use8D.js";
-import { compute8DProgress } from "../utils/compute8DProgress.js";
 
 const T = {
   bg:"#f5f5f7", surface:"#ffffff", surfaceAlt:"#f5f5f7", border:"rgba(0,0,0,0.08)",
@@ -50,6 +51,7 @@ const GLOBAL_CSS = `
 .a8d-nav-btn:hover{border-color:${T.accent};box-shadow:0 2px 12px rgba(0,113,227,.1);}
 .a8d-nav-btn.done{border-color:${T.green};background:#f0fdf4;}
 .a8d-nav-btn.partial{border-color:${T.orange};background:#fffbf0;}
+.a8d-nav-btn.skipped{border-color:rgba(0,0,0,0.08);background:#f5f5f7;opacity:0.6;}
 .a8d-action-card{background:${T.surface};border:1.5px solid ${T.border};border-radius:${T.r};padding:16px;transition:box-shadow .15s;}
 .a8d-action-card:hover{box-shadow:${T.shadowHover};}
 .a8d-add-btn{width:100%;padding:11px;border:1.5px dashed ${T.border};border-radius:${T.r};background:transparent;color:${T.textLight};font-family:${T.font};font-size:13px;font-weight:500;cursor:pointer;transition:all .15s;}
@@ -66,13 +68,47 @@ const GLOBAL_CSS = `
 .a8d-photo-del{position:absolute;top:3px;right:3px;width:20px;height:20px;border-radius:50%;background:rgba(255,59,48,.85);border:none;color:#fff;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center;font-weight:700;}
 .a8d-photo-add-btn{width:84px;height:84px;border-radius:8px;border:1.5px dashed ${T.border};background:${T.surfaceAlt};display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;cursor:pointer;transition:all .15s;font-family:${T.font};font-size:10px;color:${T.textLight};}
 .a8d-photo-add-btn:hover{border-color:${T.accent};color:${T.accent};background:rgba(0,113,227,.04);}
-@media(max-width:680px){.a8d-6m-grid{grid-template-columns:1fr;}.a8d-nav-btn{min-width:100px;}}
+.a8d-outil-btn{display:flex;align-items:center;gap:12px;padding:14px 18px;border-radius:12px;border:1.5px solid rgba(0,0,0,0.08);background:#fff;cursor:pointer;transition:all .15s;font-family:${T.font};text-align:left;width:100%;}
+.a8d-outil-btn:hover{border-color:#0071e3;background:rgba(0,113,227,.03);}
+.a8d-outil-btn.selected{border-color:#0071e3;background:rgba(0,113,227,.06);}
+.a8d-outil-check{width:20px;height:20px;border-radius:6px;border:1.5px solid rgba(0,0,0,0.08);display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s;}
+.a8d-outil-btn.selected .a8d-outil-check{background:#0071e3;border-color:#0071e3;}
+
+/* ── MOBILE ── */
+@media(max-width:768px){
+  .a8d-6m-grid{grid-template-columns:1fr;}
+  .a8d-nav-btn{min-width:72px;padding:7px 8px;flex-shrink:0;}
+  .a8d-card{padding:12px;}
+  .a8d-action-card{padding:12px;}
+  .a8d-chip{padding:9px 13px;font-size:13px;min-height:42px;}
+  .a8d-rpill{padding:9px 14px;font-size:13px;min-height:42px;}
+  .a8d-input,.a8d-select,.a8d-textarea{font-size:15px;padding:11px 13px;min-height:44px;}
+  .a8d-btn{padding:8px 11px;font-size:12px;}
+  .a8d-add-btn{padding:14px;font-size:14px;min-height:52px;}
+  .a8d-photo-thumb{width:90px;height:90px;}
+  .a8d-photo-add-btn{width:90px;height:90px;}
+  .a8d-outil-btn{padding:12px 14px;}
+}
+@media(max-width:420px){
+  .a8d-nav-btn{min-width:56px;}
+}
 `;
 
 function injectCSS() {
   if (document.getElementById("a8d-styles")) return;
   const s = document.createElement("style"); s.id="a8d-styles"; s.textContent=GLOBAL_CSS;
   document.head.appendChild(s);
+}
+
+// ── Détection mobile ─────────────────────────────────────────
+function useIsMobile() {
+  const [mob, setMob] = useState(() => window.innerWidth <= 768);
+  useEffect(() => {
+    const fn = () => setMob(window.innerWidth <= 768);
+    window.addEventListener("resize", fn);
+    return () => window.removeEventListener("resize", fn);
+  }, []);
+  return mob;
 }
 
 const SECTIONS = [
@@ -105,6 +141,7 @@ const FAMILLES_COLORS = {
 
 const EMPTY = {
   description_defaut:"", photos:[], problemes:[],
+  outils_analyse:{ ishikawa:null, cinq_pourquoi:null },
   actions_immediates:[], action_immediate_autre:"",
   responsable_immediat:"", responsable_immediat_email:"", date_immediat:"", ilot:"",
   causes_6m:{ Méthode:{selected:[],autre:""}, Machine:{selected:[],autre:""}, Matière:{selected:[],autre:""}, "Main d'œuvre":{selected:[],autre:""}, Milieu:{selected:[],autre:""}, Mesure:{selected:[],autre:""} },
@@ -114,6 +151,7 @@ const EMPTY = {
   actions:[{ description:"", responsable:"", responsable_email:"", echeance:"", type:"Corrective", statut:"À faire" }],
   methode_verif:"", resultat_verif:"", date_verif:"",
   responsable_qualite:"", responsable_qualite_email:"", date_cloture:"", recurrente:"",
+  membres_groupe:[],
 };
 
 function safeParse(v) {
@@ -125,19 +163,13 @@ function safeParse(v) {
 function computeProgress(d) {
   const p = arr => Math.round((arr.filter(Boolean).length / arr.length) * 100);
   const actionsRemplies = (d.actions||[]).filter(a => a.description?.trim());
+  const outils = d.outils_analyse || { ishikawa:null, cinq_pourquoi:null };
+  const d4 = outils.ishikawa === false ? 100 : outils.ishikawa === true ? p([!!d.ilot, Object.values(d.causes_6m||{}).some(f=>f.selected?.length>0||f.autre)]) : 0;
+  const d5 = outils.cinq_pourquoi === false ? 100 : outils.cinq_pourquoi === true ? p([(d.why_apparition||[]).some(w=>w?.trim()), (d.why_non_detection||[]).some(w=>w?.trim())]) : 0;
   return {
     3: p([d.actions_immediates?.length>0, !!d.responsable_immediat, !!d.date_immediat]),
-    4: p([!!d.ilot, Object.values(d.causes_6m||{}).some(f => f.selected?.length>0||f.autre)]),
-    5: p([
-      (d.why_apparition||[]).some(w => w?.trim()),
-      (d.why_non_detection||[]).some(w => w?.trim()),
-    ]),
-    6: actionsRemplies.length === 0
-      ? 0
-      : p([
-          actionsRemplies.length > 0,
-          actionsRemplies.every(a => a.responsable?.trim()),
-        ]),
+    4: d4, 5: d5,
+    6: actionsRemplies.length===0 ? 0 : p([actionsRemplies.length>0, actionsRemplies.every(a=>a.responsable?.trim())]),
     7: p([!!d.methode_verif, !!d.resultat_verif, !!d.date_verif]),
     8: p([!!d.responsable_qualite, !!d.date_cloture, !!d.recurrente]),
   };
@@ -180,19 +212,21 @@ function ProgressRing({ pct, size=28 }) {
   const color=pct===100?T.green:pct>0?T.orange:T.textLight;
   return <svg width={size} height={size}><circle cx={size/2} cy={size/2} r={r} fill="none" stroke={T.border} strokeWidth={3}/><circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={3} strokeDasharray={`${dash} ${circ}`} strokeLinecap="round" transform={`rotate(-90 ${size/2} ${size/2})`} style={{ transition:"stroke-dasharray .4s ease" }}/></svg>;
 }
-function SectionTitle({ id, label, icon, pct }) {
-  const color=pct===100?T.green:pct>0?T.orange:T.textLight;
+function SectionTitle({ id, label, icon, pct, skipped }) {
+  const color=skipped?T.textLight:pct===100?T.green:pct>0?T.orange:T.textLight;
   return (
     <div style={{ display:"flex", alignItems:"center", gap:14, marginBottom:20 }}>
-      <div style={{ width:42, height:42, borderRadius:12, background:pct===100?"#e8fdf0":pct>0?"#fff8ed":T.surfaceAlt, border:`1.5px solid ${pct===100?T.green:pct>0?T.orange:T.border}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, flexShrink:0 }}>{icon}</div>
+      <div style={{ width:42, height:42, borderRadius:12, background:skipped?T.surfaceAlt:pct===100?"#e8fdf0":pct>0?"#fff8ed":T.surfaceAlt, border:`1.5px solid ${skipped?T.border:pct===100?T.green:pct>0?T.orange:T.border}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, flexShrink:0, opacity:skipped?.5:1 }}>{icon}</div>
       <div style={{ flex:1 }}>
         <div style={{ fontFamily:T.font, fontSize:10, fontWeight:700, color:T.textLight, textTransform:"uppercase", letterSpacing:".6px" }}>D{id}</div>
-        <div style={{ fontFamily:T.fontDisplay, fontSize:17, fontWeight:700, color:T.textPrimary, lineHeight:1.2 }}>{label}</div>
+        <div style={{ fontFamily:T.fontDisplay, fontSize:17, fontWeight:700, color:skipped?T.textLight:T.textPrimary, lineHeight:1.2 }}>{label}{skipped&&<span style={{ fontSize:12, fontWeight:500, marginLeft:8, color:T.textLight }}>— Non utilisé</span>}</div>
       </div>
-      <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-        <span style={{ fontFamily:T.font, fontSize:12, fontWeight:700, color }}>{pct}%</span>
-        <ProgressRing pct={pct}/>
-      </div>
+      {!skipped && (
+        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+          <span style={{ fontFamily:T.font, fontSize:12, fontWeight:700, color }}>{pct}%</span>
+          <ProgressRing pct={pct}/>
+        </div>
+      )}
     </div>
   );
 }
@@ -227,7 +261,7 @@ function CauseBlock({ famille, options, selected, autre, onChange, onAutre }) {
 function StatutPill({ value, checked, onSelect }) {
   const styles = { "À faire":{bg:T.surfaceAlt,color:T.textSecond,border:T.border}, "En cours":{bg:"#fff8ed",color:"#b45309",border:T.orange}, "Terminé":{bg:"#e8fdf0",color:"#1a7a3f",border:T.green}, "Non réalisable":{bg:"#fff0ef",color:T.red,border:T.red} };
   const sc = styles[value]||styles["À faire"];
-  return <label style={{ display:"flex", alignItems:"center", gap:6, padding:"6px 12px", borderRadius:20, cursor:"pointer", fontSize:12.5, fontWeight:500, border:`1.5px solid ${checked?sc.border:T.border}`, background:checked?sc.bg:T.surface, color:checked?sc.color:T.textSecond, transition:"all .12s" }}><input type="radio" style={{ display:"none" }} checked={checked} onChange={onSelect}/>{checked&&<span style={{ fontSize:9 }}>●</span>}{value}</label>;
+  return <label style={{ display:"flex", alignItems:"center", gap:6, padding:"6px 12px", borderRadius:20, cursor:"pointer", fontSize:12.5, fontWeight:500, border:`1.5px solid ${checked?sc.border:T.border}`, background:checked?sc.bg:T.surface, color:checked?sc.color:T.textSecond, transition:"all .12s", minHeight:40 }}><input type="radio" style={{ display:"none" }} checked={checked} onChange={onSelect}/>{checked&&<span style={{ fontSize:9 }}>●</span>}{value}</label>;
 }
 function PhotosSection({ photos, onAdd, onRemove, onLightbox }) {
   return (
@@ -243,46 +277,63 @@ function PhotosSection({ photos, onAdd, onRemove, onLightbox }) {
   );
 }
 
-// ─── Composant principal ──────────────────────────────────────────────────────
-// Props :
-//   open, fe, initialValue, onCancel, onSave
-//   site (optionnel) — si fourni, sauvegarde le 8D dans KEP_NC_{site}
 export default function Analyse8DModal({ open, initialValue, fe, onCancel, onSave, site }) {
-  const [data, setData]             = useState(EMPTY);
+  const isMobile = useIsMobile();
+  const [data, setData]           = useState(EMPTY);
   const [showCausalTree, setShowCausalTree] = useState(false);
-  const [lightbox, setLightbox]     = useState(null);
-  const [saveMsg,  setSaveMsg]      = useState(null); // "saving" | "ok" | "error"
+  const [lightbox, setLightbox]   = useState(null);
+  const [saveMsg,  setSaveMsg]    = useState(null);
+  const [cloture,  setCloture]    = useState(false);
   const sectionRefs = useRef({});
   const scrollRef   = useRef(null);
 
-  // ── Hook DB ────────────────────────────────────────────────
   const db8D = use8D(fe?.numero_fe, site);
 
   useEffect(() => { injectCSS(); }, []);
 
+  // Bloquer le scroll du body quand la modale est ouverte sur mobile
+  useEffect(() => {
+    if (open && isMobile) {
+      document.body.style.overflow = "hidden";
+    }
+    return () => { document.body.style.overflow = ""; };
+  }, [open, isMobile]);
+
   useEffect(() => {
     if (!open) return;
-
-    // Priorité : BDD KEP_NC > initialValue (SILOG) > EMPTY
     const fromDB      = safeParse(db8D.data?.data_json);
     const fromInitial = safeParse(initialValue);
     const base        = fromDB || fromInitial || {};
     let merged = { ...EMPTY, ...base };
-
-    // Pré-remplir depuis la FE si rien en BDD ni dans SILOG
+    if (!merged.outils_analyse || typeof merged.outils_analyse !== "object") {
+      const had6m = Object.values(merged.causes_6m||{}).some(f=>f.selected?.length>0||f.autre);
+      const had5p = (merged.why_apparition||[]).some(w=>w?.trim()) || (merged.why_non_detection||[]).some(w=>w?.trim());
+      merged.outils_analyse = { ishikawa:had6m?true:null, cinq_pourquoi:had5p?true:null };
+    }
     if (!fromDB && !fromInitial && fe) {
       const defauts = Array.isArray(fe.defauts) ? fe.defauts : [];
       if (defauts.length > 0) {
         merged.description_defaut = defauts.map(d=>d.defaut).filter(Boolean).join("\n— ");
         merged.photos = defauts.flatMap(d => d.photo ? [d.photo] : []);
         merged.problemes = defauts.map((d,i) => ({ id:`prob_${i}_${Date.now()}`, description:d.defaut||`Défaut ${i+1}`, why_apparition:["","","","",""], why_non_detection:["","","","",""], cause_racine:"" }));
+      } else if (fe.source === "app") {
+        const desc = fe.description || "";
+        if (desc) { merged.description_defaut = desc; merged.problemes = [{ id:`prob_0_${Date.now()}`, description:desc, why_apparition:["","","","",""], why_non_detection:["","","","",""], cause_racine:"" }]; }
+      } else {
+        const desc = fe.designation || fe.description || "";
+        if (desc) { merged.description_defaut = desc; merged.problemes = [{ id:`prob_0_${Date.now()}`, description:desc, why_apparition:["","","","",""], why_non_detection:["","","","",""], cause_racine:"" }]; }
       }
     }
     setData(merged);
   }, [open, db8D.data, initialValue]);
 
-  const set    = (k,v)  => setData(p=>({...p,[k]:v}));
-  const set6m  = (f,pt) => setData(p=>({...p,causes_6m:{...p.causes_6m,[f]:{...p.causes_6m[f],...pt}}}));
+  const set      = (k,v)  => setData(p=>({...p,[k]:v}));
+  const set6m    = (f,pt) => setData(p=>({...p,causes_6m:{...p.causes_6m,[f]:{...p.causes_6m[f],...pt}}}));
+  const setOutils = v => setData(p=>({...p,outils_analyse:v}));
+
+  const outils       = data.outils_analyse || { ishikawa:null, cinq_pourquoi:null };
+  const skipIshikawa = outils.ishikawa === false;
+  const skip5P       = outils.cinq_pourquoi === false;
 
   const handleAddPhoto = e => {
     Array.from(e.target.files).forEach(f=>{ const r=new FileReader(); r.onload=ev=>setData(p=>({...p,photos:[...(p.photos||[]),ev.target.result]})); r.readAsDataURL(f); });
@@ -305,16 +356,14 @@ export default function Analyse8DModal({ open, initialValue, fe, onCancel, onSav
 
   const progress = useMemo(()=>computeProgress(data), [
     data.actions_immediates, data.responsable_immediat, data.date_immediat,
-    data.ilot, data.causes_6m,
-    data.why_apparition, data.why_non_detection,
-    data.actions,
-    data.methode_verif, data.resultat_verif, data.date_verif,
-    data.responsable_qualite, data.date_cloture, data.recurrente,
+    data.ilot, data.causes_6m, data.why_apparition, data.why_non_detection,
+    data.actions, data.methode_verif, data.resultat_verif, data.date_verif,
+    data.responsable_qualite, data.date_cloture, data.recurrente, data.outils_analyse,
   ]);
-  const totalPct = Math.round(Object.values(progress).reduce((a,b)=>a+b,0)/Object.keys(progress).length);
+  const totalPct   = Math.round(Object.values(progress).reduce((a,b)=>a+b,0)/Object.keys(progress).length);
   const d8Complete = progress[8]===100;
 
-  const toggleAct = v => set("actions_immediates", data.actions_immediates.includes(v)?data.actions_immediates.filter(x=>x!==v):[...data.actions_immediates,v]);
+  const toggleAct    = v => set("actions_immediates", data.actions_immediates.includes(v)?data.actions_immediates.filter(x=>x!==v):[...data.actions_immediates,v]);
   const addAction    = ()      => setData(p=>({...p, actions:[...p.actions, {description:"",responsable:"",responsable_email:"",echeance:"",type:"Corrective",statut:"À faire"}]}));
   const updateAction = (i,k,v) => setData(p=>({...p, actions:p.actions.map((a,idx)=>idx===i?{...a,[k]:v}:a)}));
   const removeAction = i       => setData(p=>({...p, actions:p.actions.filter((_,idx)=>idx!==i)}));
@@ -330,111 +379,139 @@ export default function Analyse8DModal({ open, initialValue, fe, onCancel, onSav
     window.open(`mailto:${emails}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`,"_blank");
   };
 
-  // ── Enregistrement — BDD + callback parent ────────────────
   const handleSave = async () => {
     const jsonStr = JSON.stringify(data, null, 2);
     setSaveMsg("saving");
     try {
-      // 1. Sauvegarde en BDD KEP_NC_{site}
-      const source = fe?.source || "SILOG";
-      const statut = d8Complete ? "traite" : "en_cours";
-      await db8D.save(data, source, statut);
-
-      // 2. Callback parent (pour mettre à jour l'UI locale)
+      await db8D.save(data, fe?.source || "SILOG", d8Complete ? "traite" : "en_cours");
       onSave(jsonStr);
       setSaveMsg("ok");
       setTimeout(()=>setSaveMsg(null), 2000);
     } catch {
       setSaveMsg("error");
       setTimeout(()=>setSaveMsg(null), 3000);
-      // Sauvegarde locale quand même
       onSave(jsonStr);
     }
   };
 
-  // ── Clôture locale ───────────────────────────────────────
-  const [cloture, setCloture] = useState(false);
-
   const handleCloture = async () => {
     if (!d8Complete) return;
-    // Sauvegarde avec statut clos
     await db8D.save(data, fe?.source || "SILOG", "traite");
     setCloture(true);
   };
 
+  const handleOuvrirDossier = async () => {
+    const token = localStorage.getItem("kep_token");
+    const s     = (fe?.site || site || "").toLowerCase();
+    const id    = fe?.id || fe?.numero_fe;
+    if (!s || !id) return;
+    await fetch(`${import.meta.env.VITE_API_URL || "http://localhost:4000"}/api/nc-fe/${s}/${id}/ouvrir-dossier`, { headers:{ Authorization:`Bearer ${token}` } });
+  };
+
   if (!open) return null;
 
-  const saveLabel = saveMsg==="saving" ? "Enregistrement…" : saveMsg==="ok" ? "✓ Enregistré" : saveMsg==="error" ? "⚠ Enregistré localement" : "💾 Enregistrer";
+  const saveLabel = saveMsg==="saving" ? "Enregistrement…" : saveMsg==="ok" ? "✓ Enregistré" : saveMsg==="error" ? "⚠ Local" : "💾 Enregistrer";
   const saveBg    = saveMsg==="ok" ? T.green : saveMsg==="error" ? T.orange : T.accent;
 
+  // Dimensions selon mobile ou desktop
+  const modalStyle = isMobile ? {
+    width:"100vw", maxWidth:"100vw", height:"100vh", maxHeight:"100vh",
+    minWidth:"unset", resize:"none", borderRadius:0,
+  } : {
+    width:"90vw", maxWidth:1100, height:"88vh", maxHeight:"88vh",
+    minWidth:500, resize:"both", borderRadius:20,
+  };
+
   return (
-    <div style={{ position:"fixed", inset:0, zIndex:9999, background:"rgba(0,0,0,0.42)", backdropFilter:"blur(10px) saturate(180%)", WebkitBackdropFilter:"blur(10px) saturate(180%)", display:"flex", alignItems:"center", justifyContent:"center" }} onMouseDown={onCancel}>
-      <div style={{ width:"90vw", maxWidth:1100, height:"88vh", maxHeight:"88vh", minWidth:500, resize:"both", overflow:"hidden", borderRadius:20, background:T.bg, boxShadow:T.shadowModal, display:"flex", flexDirection:"column", fontFamily:T.font }} onMouseDown={e=>e.stopPropagation()}>
+    <div
+      style={{ position:"fixed", inset:0, zIndex:9999, background:"rgba(0,0,0,0.42)", backdropFilter:"blur(10px) saturate(180%)", WebkitBackdropFilter:"blur(10px) saturate(180%)", display:"flex", alignItems:"center", justifyContent:"center" }}
+      onMouseDown={isMobile ? undefined : onCancel}
+    >
+      <div
+        style={{ ...modalStyle, overflow:"hidden", background:T.bg, boxShadow:T.shadowModal, display:"flex", flexDirection:"column", fontFamily:T.font }}
+        onMouseDown={e=>e.stopPropagation()}
+      >
 
         {/* ── HEADER ── */}
-        <div style={{ padding:"14px 20px 0", background:"rgba(255,255,255,0.92)", backdropFilter:"blur(20px)", WebkitBackdropFilter:"blur(20px)", borderBottom:`1px solid ${T.border}`, flexShrink:0 }}>
-          <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:14 }}>
+        <div style={{ background:"rgba(255,255,255,0.92)", backdropFilter:"blur(20px)", WebkitBackdropFilter:"blur(20px)", borderBottom:`1px solid ${T.border}`, flexShrink:0 }}>
+
+          {/* Ligne titre */}
+          <div style={{ display:"flex", alignItems:"center", gap:8, padding: isMobile ? "10px 12px 8px" : "14px 20px 0", flexWrap:"wrap" }}>
+            {/* Titre */}
             <div style={{ flex:1, minWidth:0 }}>
-              <div style={{ fontFamily:T.fontDisplay, fontWeight:700, fontSize:15, color:T.textPrimary, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
-                Analyse 8D — {fe?.numero_fe||"NC"}
-                {/* Badge statut BDD */}
-                {(db8D.statut === "traite" || cloture) && (
-                  <span style={{ marginLeft:10, fontSize:11, fontWeight:700, padding:"2px 8px", borderRadius:10, background:"#e8fdf0", color:"#1a7a3f" }}>
-                    ✓ Traité — à clôturer dans Silogue
-                  </span>
-                )}
-                {db8D.statut === "en_cours" && !cloture && (
-                  <span style={{ marginLeft:10, fontSize:11, fontWeight:700, padding:"2px 8px", borderRadius:10, background:"#eef4ff", color:T.accent }}>
-                    En cours
-                  </span>
-                )}
+              <div style={{ fontFamily:T.fontDisplay, fontWeight:700, fontSize: isMobile ? 14 : 15, color:T.textPrimary, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                {isMobile ? `8D — ${fe?.numero_fe||"NC"}` : `Analyse 8D — ${fe?.numero_fe||"NC"}`}
+                {(db8D.statut === "traite" || cloture) && <span style={{ marginLeft:8, fontSize:10, fontWeight:700, padding:"2px 7px", borderRadius:10, background:"#e8fdf0", color:"#1a7a3f" }}>✓ Traité</span>}
+                {db8D.statut === "en_cours" && !cloture && <span style={{ marginLeft:8, fontSize:10, fontWeight:700, padding:"2px 7px", borderRadius:10, background:"#eef4ff", color:T.accent }}>En cours</span>}
               </div>
-              {fe?.designation&&<div style={{ fontSize:11.5, color:T.textSecond, marginTop:1 }}>{fe.designation}</div>}
+              {fe?.designation && !isMobile && <div style={{ fontSize:11.5, color:T.textSecond, marginTop:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{fe.designation}</div>}
             </div>
-            <div style={{ display:"flex", alignItems:"center", gap:8, flexShrink:0 }}>
-              <span style={{ fontSize:11, fontWeight:600, color:T.textSecond }}>Avancement global</span>
-              <div style={{ width:90, height:4, borderRadius:2, background:T.border, overflow:"hidden" }}>
-                <div style={{ width:`${totalPct}%`, height:"100%", background:totalPct===100?T.green:T.accent, borderRadius:2, transition:"width .4s" }}/>
+
+            {/* Avancement — masqué sur mobile */}
+            {!isMobile && (
+              <div style={{ display:"flex", alignItems:"center", gap:8, flexShrink:0 }}>
+                <span style={{ fontSize:11, fontWeight:600, color:T.textSecond }}>Avancement</span>
+                <div style={{ width:90, height:4, borderRadius:2, background:T.border, overflow:"hidden" }}>
+                  <div style={{ width:`${totalPct}%`, height:"100%", background:totalPct===100?T.green:T.accent, borderRadius:2, transition:"width .4s" }}/>
+                </div>
+                <span style={{ fontSize:12, fontWeight:700, color:totalPct===100?T.green:T.accent, minWidth:28 }}>{totalPct}%</span>
               </div>
-              <span style={{ fontSize:12, fontWeight:700, color:totalPct===100?T.green:T.accent, minWidth:28 }}>{totalPct}%</span>
-            </div>
-            <div style={{ display:"flex", gap:8, flexShrink:0 }}>
-              <button className="a8d-btn" onClick={handleEmail}>✉️ Envoyer récap</button>
-              {/* Bouton clôture — visible uniquement si D8 complet */}
-              {d8Complete && !cloture && (
-                <button className="a8d-btn a8d-btn-cloture" onClick={handleCloture}>
-                  🔒 Clôturer le 8D
-                </button>
-              )}
-              {cloture && (
-                <div style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 14px", borderRadius:8, background:"#e8fdf0", border:"1.5px solid #30d158", fontSize:12, fontWeight:700, color:"#1a7a3f" }}>
-                  ✓ Clôturé — à marquer dans Silogue
+            )}
+
+            {/* Boutons — scroll horizontal sur mobile */}
+            <div style={{ display:"flex", gap:6, flexShrink:0, overflowX: isMobile ? "auto" : "visible", WebkitOverflowScrolling:"touch", paddingBottom: isMobile ? 2 : 0, maxWidth: isMobile ? "100vw" : "unset" }}>
+              {/* Avancement compact sur mobile */}
+              {isMobile && (
+                <div style={{ display:"flex", alignItems:"center", gap:6, padding:"6px 10px", background:T.surfaceAlt, borderRadius:8, border:`1.5px solid ${T.border}`, flexShrink:0 }}>
+                  <div style={{ width:50, height:4, borderRadius:2, background:T.border, overflow:"hidden" }}>
+                    <div style={{ width:`${totalPct}%`, height:"100%", background:totalPct===100?T.green:T.accent, borderRadius:2 }}/>
+                  </div>
+                  <span style={{ fontSize:11, fontWeight:700, color:totalPct===100?T.green:T.accent }}>{totalPct}%</span>
                 </div>
               )}
-              <button className="a8d-btn a8d-btn-primary" style={{ background:saveBg, borderColor:saveBg }} onClick={handleSave} disabled={saveMsg==="saving"}>
-                {saveLabel}
+              {!isMobile && <button className="a8d-btn" onClick={handleEmail}>✉️ Envoyer récap</button>}
+              {!isMobile && fe?.numero_fe && (
+                <button className="a8d-btn" onClick={handleOuvrirDossier}>📂 Dossier</button>
+              )}
+              {!isMobile && <button className="a8d-btn" onClick={()=>export8DPdf(data, fe, data.membres_groupe||[])}>📄 PDF</button>}
+              {d8Complete && !cloture && !isMobile && (
+                <button className="a8d-btn a8d-btn-cloture" onClick={handleCloture}>🔒 Clôturer</button>
+              )}
+              {cloture && !isMobile && (
+                <div style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 14px", borderRadius:8, background:"#e8fdf0", border:"1.5px solid #30d158", fontSize:12, fontWeight:700, color:"#1a7a3f" }}>✓ Clôturé</div>
+              )}
+              <button className="a8d-btn a8d-btn-primary" style={{ background:saveBg, borderColor:saveBg, flexShrink:0 }} onClick={handleSave} disabled={saveMsg==="saving"}>
+                {isMobile ? (saveMsg==="ok"?"✓":saveMsg==="saving"?"…":"💾") : saveLabel}
               </button>
-              <button onClick={onCancel} style={{ width:30, height:30, borderRadius:"50%", background:"rgba(0,0,0,0.06)", border:"none", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, color:T.textSecond }}>✕</button>
+              <button onClick={onCancel} style={{ width:34, height:34, borderRadius:"50%", background:"rgba(0,0,0,0.06)", border:"none", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, color:T.textSecond, flexShrink:0 }}>✕</button>
             </div>
           </div>
-          <div style={{ display:"flex", gap:8, paddingBottom:14, overflowX:"auto" }}>
+
+          {/* Nav D3-D8 */}
+          <div style={{ display:"flex", gap:isMobile?6:8, paddingBottom:isMobile?10:14, overflowX:"auto", WebkitOverflowScrolling:"touch", paddingLeft:isMobile?12:20, paddingRight:isMobile?12:20, paddingTop: isMobile ? 4 : 0 }}>
             {SECTIONS.map(s=>{
               const pct=progress[s.id]??0;
+              const isSkipped=(s.id===4&&skipIshikawa)||(s.id===5&&skip5P);
               return (
-                <button key={s.id} className={`a8d-nav-btn ${pct===100?"done":pct>0?"partial":""}`} onClick={()=>scrollTo(s.id)}>
-                  <div style={{ display:"flex", alignItems:"center", gap:7 }}>
-                    <span style={{ fontSize:14 }}>{s.icon}</span>
-                    <div>
-                      <div style={{ fontSize:9.5, fontWeight:700, color:T.textLight, textTransform:"uppercase", letterSpacing:".4px" }}>D{s.id}</div>
-                      <div style={{ fontSize:12, fontWeight:600, color:T.textPrimary, lineHeight:1.2, whiteSpace:"nowrap" }}>{s.label}</div>
-                    </div>
+                <button key={s.id} className={`a8d-nav-btn ${isSkipped?"skipped":pct===100?"done":pct>0?"partial":""}`} onClick={()=>scrollTo(s.id)}>
+                  <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                    <span style={{ fontSize:isMobile?16:14 }}>{s.icon}</span>
+                    {!isMobile && (
+                      <div>
+                        <div style={{ fontSize:9.5, fontWeight:700, color:T.textLight, textTransform:"uppercase", letterSpacing:".4px" }}>D{s.id}</div>
+                        <div style={{ fontSize:12, fontWeight:600, color:T.textPrimary, lineHeight:1.2, whiteSpace:"nowrap" }}>{s.label}</div>
+                      </div>
+                    )}
+                    {isMobile && <div style={{ fontSize:10, fontWeight:700, color:T.textSecond }}>D{s.id}</div>}
                   </div>
-                  <div style={{ display:"flex", alignItems:"center", gap:6, marginTop:5, width:"100%" }}>
-                    <div style={{ flex:1, height:3, borderRadius:2, background:T.border, overflow:"hidden" }}>
-                      <div style={{ width:`${pct}%`, height:"100%", background:pct===100?T.green:pct>0?T.orange:T.border, transition:"width .3s" }}/>
+                  {!isSkipped ? (
+                    <div style={{ display:"flex", alignItems:"center", gap:4, marginTop:isMobile?3:5, width:"100%" }}>
+                      <div style={{ flex:1, height:3, borderRadius:2, background:T.border, overflow:"hidden" }}>
+                        <div style={{ width:`${pct}%`, height:"100%", background:pct===100?T.green:pct>0?T.orange:T.border, transition:"width .3s" }}/>
+                      </div>
+                      <span style={{ fontSize:9, fontWeight:700, color:pct===100?T.green:pct>0?T.orange:T.textLight }}>{pct}%</span>
                     </div>
-                    <span style={{ fontSize:10, fontWeight:700, color:pct===100?T.green:pct>0?T.orange:T.textLight, minWidth:24 }}>{pct}%</span>
-                  </div>
+                  ) : <div style={{ fontSize:9, color:T.textLight, marginTop:3 }}>Skip</div>}
                 </button>
               );
             })}
@@ -442,7 +519,7 @@ export default function Analyse8DModal({ open, initialValue, fe, onCancel, onSav
         </div>
 
         {/* ── BODY ── */}
-        <div ref={scrollRef} className="a8d-scroll" style={{ flex:1, overflowY:"auto", padding:"28px 28px 60px", display:"flex", flexDirection:"column", gap:52 }}>
+        <div ref={scrollRef} className="a8d-scroll" style={{ flex:1, overflowY:"auto", padding: isMobile ? "16px 12px 60px" : "28px 28px 60px", display:"flex", flexDirection:"column", gap: isMobile ? 32 : 52 }}>
 
           {/* CTX */}
           <section ref={el=>(sectionRefs.current["ctx"]=el)}>
@@ -450,7 +527,7 @@ export default function Analyse8DModal({ open, initialValue, fe, onCancel, onSav
               <div style={{ width:42, height:42, borderRadius:12, background:"#eef4ff", border:"1.5px solid rgba(0,113,227,.25)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, flexShrink:0 }}>📌</div>
               <div style={{ flex:1 }}>
                 <div style={{ fontFamily:T.font, fontSize:10, fontWeight:700, color:T.textLight, textTransform:"uppercase", letterSpacing:".6px" }}>D1 – D2</div>
-                <div style={{ fontFamily:T.fontDisplay, fontSize:17, fontWeight:700, color:T.textPrimary, lineHeight:1.2 }}>Contexte &amp; défaut(s)</div>
+                <div style={{ fontFamily:T.fontDisplay, fontSize: isMobile ? 15 : 17, fontWeight:700, color:T.textPrimary, lineHeight:1.2 }}>Contexte &amp; défaut(s)</div>
               </div>
               {fe&&<div style={{ padding:"4px 12px", borderRadius:20, background:"#eef4ff", border:"1.5px solid rgba(0,113,227,.2)", fontSize:12, fontWeight:600, color:T.accent }}>📋 {fe.numero_fe}</div>}
             </div>
@@ -461,19 +538,6 @@ export default function Analyse8DModal({ open, initialValue, fe, onCancel, onSav
                 {!(data.photos||[]).length&&<p style={{ fontSize:12, color:T.textLight, fontStyle:"italic", margin:"4px 0 8px" }}>Aucune photo — importées depuis la FE si disponibles.</p>}
                 <PhotosSection photos={data.photos} onAdd={handleAddPhoto} onRemove={handleRemovePhoto} onLightbox={setLightbox}/>
               </div>
-              {fe?.defauts&&fe.defauts.length>1&&(
-                <div>
-                  <Label>Défauts déclarés dans la FE</Label>
-                  <div style={{ display:"flex", flexDirection:"column", gap:6, marginTop:4 }}>
-                    {fe.defauts.map((d,i)=>(
-                      <div key={i} style={{ display:"flex", gap:10, alignItems:"flex-start", padding:"8px 12px", background:T.surfaceAlt, borderRadius:T.rSm, border:`1.5px solid ${T.border}` }}>
-                        <div style={{ width:22, height:22, borderRadius:6, background:T.accent, color:"#fff", display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, fontWeight:800, flexShrink:0 }}>{i+1}</div>
-                        <span style={{ fontSize:12.5, color:T.textPrimary, lineHeight:1.4 }}>{d.defaut||"—"}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
           </section>
 
@@ -491,79 +555,124 @@ export default function Analyse8DModal({ open, initialValue, fe, onCancel, onSav
                   <input className="a8d-input" value={data.action_immediate_autre} onChange={e=>set("action_immediate_autre",e.target.value)} placeholder="Préciser…"/>
                 </div>
               </div>
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
+              <div style={{ display:"grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap:14 }}>
                 <Field label="Responsable"><RespSelect value={data.responsable_immediat} emailValue={data.responsable_immediat_email} onChange={(nom,email)=>setData(p=>({...p,responsable_immediat:nom,responsable_immediat_email:email}))}/></Field>
                 <Field label="Date de réalisation"><input type="date" className="a8d-input" value={data.date_immediat} onChange={e=>set("date_immediat",e.target.value)}/></Field>
               </div>
             </div>
           </section>
 
-          {/* D4 */}
-          <section ref={el=>(sectionRefs.current[4]=el)}>
-            <SectionTitle id={4} label="Analyse Ishikawa (6M)" icon="🔍" pct={progress[4]}/>
-            <div style={{ display:"grid", gap:16 }}>
-              <div className="a8d-card" style={{ maxWidth:380 }}>
-                <Field label="Îlot / Process identifié" required>
-                  <select className="a8d-select" value={data.ilot} onChange={e=>set("ilot",e.target.value)}>
-                    <option value="">— Choisir l'îlot —</option>
-                    {ILOTS.map(il=><option key={il} value={il}>{il}</option>)}
-                  </select>
-                </Field>
+          {/* Outils */}
+          <section>
+            <div className="a8d-card">
+              <div style={{ marginBottom:14 }}>
+                <div style={{ fontSize:11, fontWeight:600, color:T.textSecond, marginBottom:6, letterSpacing:".3px", textTransform:"uppercase" }}>Outils d'analyse causale</div>
+                <p style={{ fontSize:12, color:T.textSecond, margin:"4px 0 0" }}>Sélectionnez les outils à utiliser.</p>
               </div>
-              <div>
-                <Label>Causes identifiées par famille (6M)</Label>
-                <div className="a8d-6m-grid" style={{ marginTop:8 }}>
-                  {FAMILLES_ISHIKAWA.map(famille=>(
-                    <CauseBlock key={famille} famille={famille} options={causesIlot(famille)}
-                      selected={data.causes_6m[famille]?.selected||[]} autre={data.causes_6m[famille]?.autre||""}
-                      onChange={sel=>set6m(famille,{selected:sel})} onAutre={v=>set6m(famille,{autre:v})}/>
-                  ))}
-                </div>
+              <div style={{ display:"grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap:10 }}>
+                {[
+                  { key:"ishikawa",      icon:"🔍", label:"Ishikawa (6M)",  desc:"Causes par famille : Méthode, Machine, Matière…" },
+                  { key:"cinq_pourquoi", icon:"❓", label:"5 Pourquoi",      desc:"Arbre causes d'apparition et de non-détection" },
+                ].map(o => {
+                  const isSelected = outils[o.key] === true;
+                  return (
+                    <button key={o.key} className={`a8d-outil-btn ${isSelected?"selected":""}`}
+                      onClick={() => setOutils({ ...outils, [o.key]: outils[o.key]===true ? false : true })}>
+                      <div className="a8d-outil-check">
+                        {isSelected && <span style={{ color:"#fff", fontSize:11, fontWeight:700 }}>✓</span>}
+                      </div>
+                      <div>
+                        <div style={{ fontSize:13, fontWeight:700, color:"#1d1d1f", marginBottom:3 }}>{o.icon} {o.label}</div>
+                        <div style={{ fontSize:11, color:T.textSecond, lineHeight:1.4 }}>{o.desc}</div>
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </section>
 
-          {/* D5 */}
-          <section ref={el=>(sectionRefs.current[5]=el)}>
-            <SectionTitle id={5} label="5 Pourquoi" icon="❓" pct={progress[5]}/>
-            <div className="a8d-card" style={{ display:"flex", flexDirection:"column", gap:16 }}>
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
-                <div style={{ background:"#fff5f5", borderRadius:10, border:"1.5px solid rgba(255,59,48,.2)", padding:"12px 14px" }}>
-                  <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:10 }}>
-                    <div style={{ width:8, height:8, borderRadius:"50%", background:"#ff3b30" }}/>
-                    <span style={{ fontFamily:T.fontDisplay, fontWeight:700, fontSize:13, color:T.textPrimary }}>Causes d'apparition</span>
-                    {data.why_apparition.filter(Boolean).length>0&&<span style={{ marginLeft:"auto", background:"#ff3b30", color:"#fff", borderRadius:10, fontSize:10, fontWeight:700, padding:"1px 7px" }}>{data.why_apparition.filter(Boolean).length} entrée(s)</span>}
-                  </div>
-                  {data.why_apparition.filter(Boolean).length>0 ? data.why_apparition.filter(Boolean).map((w,i)=>(
-                    <div key={i} style={{ display:"flex", gap:8, alignItems:"flex-start", marginBottom:5 }}>
-                      <div style={{ width:18, height:18, borderRadius:5, flexShrink:0, background:"rgba(255,59,48,.12)", border:"1.5px solid rgba(255,59,48,.25)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:10, fontWeight:800, color:"#ff3b30" }}>{i+1}</div>
-                      <span style={{ fontSize:12.5, color:T.textPrimary, lineHeight:1.4 }}>{w}</span>
-                    </div>
-                  )) : <span style={{ fontSize:12, color:T.textLight, fontStyle:"italic" }}>Aucune cause saisie</span>}
-                  {data.cause_racine_apparition&&<div style={{ marginTop:10, padding:"7px 10px", background:"#e8fdf0", borderRadius:7, border:"1.5px solid #30d158", fontSize:12, color:"#1a7a3f" }}><strong>Cause racine :</strong> {data.cause_racine_apparition}</div>}
+          {/* D4 */}
+          <section ref={el=>(sectionRefs.current[4]=el)}>
+            <SectionTitle id={4} label="Analyse Ishikawa (6M)" icon="🔍" pct={progress[4]} skipped={skipIshikawa}/>
+            {skipIshikawa ? (
+              <div style={{ padding:"20px", background:T.surfaceAlt, borderRadius:12, border:`1.5px dashed ${T.border}`, textAlign:"center", color:T.textLight, fontSize:13 }}>
+                Outil non sélectionné
+                <button onClick={()=>setOutils({...outils,ishikawa:true})} style={{ marginLeft:12, fontSize:12, color:T.accent, background:"none", border:"none", cursor:"pointer", textDecoration:"underline" }}>Activer</button>
+              </div>
+            ) : outils.ishikawa === null ? (
+              <div style={{ padding:"20px", background:"#fff8ed", borderRadius:12, border:`1.5px solid ${T.orange}`, textAlign:"center", color:"#b45309", fontSize:13 }}>Sélectionnez les outils ci-dessus</div>
+            ) : (
+              <div style={{ display:"grid", gap:16 }}>
+                <div className="a8d-card" style={{ maxWidth: isMobile ? "unset" : 380 }}>
+                  <Field label="Îlot / Process identifié" required>
+                    <select className="a8d-select" value={data.ilot} onChange={e=>set("ilot",e.target.value)}>
+                      <option value="">— Choisir l'îlot —</option>
+                      {ILOTS.map(il=><option key={il} value={il}>{il}</option>)}
+                    </select>
+                  </Field>
                 </div>
-                <div style={{ background:"#fffbf0", borderRadius:10, border:"1.5px solid rgba(255,159,10,.2)", padding:"12px 14px" }}>
-                  <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:10 }}>
-                    <div style={{ width:8, height:8, borderRadius:"50%", background:"#ff9f0a" }}/>
-                    <span style={{ fontFamily:T.fontDisplay, fontWeight:700, fontSize:13, color:T.textPrimary }}>Causes de non-détection</span>
-                    {data.why_non_detection.filter(Boolean).length>0&&<span style={{ marginLeft:"auto", background:"#ff9f0a", color:"#fff", borderRadius:10, fontSize:10, fontWeight:700, padding:"1px 7px" }}>{data.why_non_detection.filter(Boolean).length} entrée(s)</span>}
+                <div>
+                  <Label>Causes identifiées par famille (6M)</Label>
+                  <div className="a8d-6m-grid" style={{ marginTop:8 }}>
+                    {FAMILLES_ISHIKAWA.map(famille=>(
+                      <CauseBlock key={famille} famille={famille} options={causesIlot(famille)}
+                        selected={data.causes_6m[famille]?.selected||[]} autre={data.causes_6m[famille]?.autre||""}
+                        onChange={sel=>set6m(famille,{selected:sel})} onAutre={v=>set6m(famille,{autre:v})}/>
+                    ))}
                   </div>
-                  {data.why_non_detection.filter(Boolean).length>0 ? data.why_non_detection.filter(Boolean).map((w,i)=>(
-                    <div key={i} style={{ display:"flex", gap:8, alignItems:"flex-start", marginBottom:5 }}>
-                      <div style={{ width:18, height:18, borderRadius:5, flexShrink:0, background:"rgba(255,159,10,.12)", border:"1.5px solid rgba(255,159,10,.3)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:10, fontWeight:800, color:"#ff9f0a" }}>{i+1}</div>
-                      <span style={{ fontSize:12.5, color:T.textPrimary, lineHeight:1.4 }}>{w}</span>
-                    </div>
-                  )) : <span style={{ fontSize:12, color:T.textLight, fontStyle:"italic" }}>Aucune cause saisie</span>}
                 </div>
               </div>
-              {data.problemes?.length>0&&<div style={{ display:"flex", alignItems:"center", gap:8, padding:"8px 14px", borderRadius:T.rSm, background:"#eef4ff", border:"1.5px solid rgba(0,113,227,.2)" }}><span style={{ fontSize:14 }}>🔢</span><span style={{ fontSize:12.5, color:T.accent, fontWeight:600 }}>{data.problemes.length} problème{data.problemes.length>1?"s":""} à analyser — importés depuis la FE</span></div>}
-              <button onClick={()=>setShowCausalTree(true)} style={{ fontFamily:T.font, fontSize:13.5, fontWeight:600, padding:"12px 20px", borderRadius:10, border:"none", cursor:"pointer", background:"linear-gradient(135deg,#ff3b30,#ff9f0a)", color:"#fff", boxShadow:"0 3px 12px rgba(255,100,10,0.30)", display:"flex", alignItems:"center", justifyContent:"center", gap:10, transition:"all .18s" }}>
-                🌳 Ouvrir l'arbre de causalité
-                {data.problemes?.length>0&&<span style={{ background:"rgba(255,255,255,.25)", borderRadius:10, padding:"1px 8px", fontSize:12 }}>{data.problemes.length} pb</span>}
-              </button>
-            </div>
+            )}
+          </section>
+
+          {/* D5 */}
+          <section ref={el=>(sectionRefs.current[5]=el)}>
+            <SectionTitle id={5} label="5 Pourquoi" icon="❓" pct={progress[5]} skipped={skip5P}/>
+            {skip5P ? (
+              <div style={{ padding:"20px", background:T.surfaceAlt, borderRadius:12, border:`1.5px dashed ${T.border}`, textAlign:"center", color:T.textLight, fontSize:13 }}>
+                Outil non sélectionné
+                <button onClick={()=>setOutils({...outils,cinq_pourquoi:true})} style={{ marginLeft:12, fontSize:12, color:T.accent, background:"none", border:"none", cursor:"pointer", textDecoration:"underline" }}>Activer</button>
+              </div>
+            ) : outils.cinq_pourquoi === null ? (
+              <div style={{ padding:"20px", background:"#fff8ed", borderRadius:12, border:`1.5px solid ${T.orange}`, textAlign:"center", color:"#b45309", fontSize:13 }}>Sélectionnez les outils ci-dessus</div>
+            ) : (
+              <div className="a8d-card" style={{ display:"flex", flexDirection:"column", gap:16 }}>
+                <div style={{ display:"grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap:12 }}>
+                  {[
+                    { key:"why_apparition", label:"Causes d'apparition", bg:"#fff5f5", border:"rgba(255,59,48,.2)", color:"#ff3b30" },
+                    { key:"why_non_detection", label:"Causes de non-détection", bg:"#fffbf0", border:"rgba(255,159,10,.2)", color:"#ff9f0a" },
+                  ].map(({ key, label, bg, border, color }) => (
+                    <div key={key} style={{ background:bg, borderRadius:10, border:`1.5px solid ${border}`, padding:"12px 14px" }}>
+                      <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:10 }}>
+                        <div style={{ width:8, height:8, borderRadius:"50%", background:color }}/>
+                        <span style={{ fontFamily:T.fontDisplay, fontWeight:700, fontSize:13, color:T.textPrimary }}>{label}</span>
+                        {data[key].filter(Boolean).length>0&&<span style={{ marginLeft:"auto", background:color, color:"#fff", borderRadius:10, fontSize:10, fontWeight:700, padding:"1px 7px" }}>{data[key].filter(Boolean).length}</span>}
+                      </div>
+                      {data[key].filter(Boolean).length>0 ? data[key].filter(Boolean).map((w,i)=>(
+                        <div key={i} style={{ display:"flex", gap:8, alignItems:"flex-start", marginBottom:5 }}>
+                          <div style={{ width:18, height:18, borderRadius:5, flexShrink:0, background:`${color}20`, border:`1.5px solid ${color}40`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:10, fontWeight:800, color }}>{i+1}</div>
+                          <span style={{ fontSize:12.5, color:T.textPrimary, lineHeight:1.4 }}>{w}</span>
+                        </div>
+                      )) : <span style={{ fontSize:12, color:T.textLight, fontStyle:"italic" }}>Aucune cause saisie</span>}
+                    </div>
+                  ))}
+                </div>
+                <button onClick={()=>setShowCausalTree(true)} style={{ fontFamily:T.font, fontSize:13.5, fontWeight:600, padding:"12px 20px", borderRadius:10, border:"none", cursor:"pointer", background:"linear-gradient(135deg,#ff3b30,#ff9f0a)", color:"#fff", boxShadow:"0 3px 12px rgba(255,100,10,0.30)", display:"flex", alignItems:"center", justifyContent:"center", gap:10, width:"100%" }}>
+                  🌳 Ouvrir l'arbre de causalité
+                </button>
+              </div>
+            )}
             <CausalTreeModal open={showCausalTree} whyApparition={data.why_apparition} whyNonDetection={data.why_non_detection} causeRacine={data.cause_racine_apparition} problemes={data.problemes} fe={fe} onCancel={()=>setShowCausalTree(false)}
               onSave={({why_apparition,why_non_detection,cause_racine_apparition,problemes})=>{ setData(p=>({...p,why_apparition:[...why_apparition],why_non_detection:[...why_non_detection],cause_racine_apparition,...(problemes!==undefined?{problemes:[...problemes]}:{})})); setShowCausalTree(false); }}/>
+          </section>
+
+          {/* Groupe */}
+          <section>
+            <div style={{ fontFamily:T.font, fontSize:10, fontWeight:700, color:T.textLight, textTransform:"uppercase", letterSpacing:".6px", marginBottom:12 }}>Équipe</div>
+            <div className="a8d-card">
+              <GroupeTravail membres={data.membres_groupe||[]} onChange={v => set("membres_groupe", v)} fe={fe} data8D={data}/>
+            </div>
           </section>
 
           {/* D6 */}
@@ -574,14 +683,14 @@ export default function Analyse8DModal({ open, initialValue, fe, onCancel, onSav
                 <div key={i} className="a8d-action-card">
                   <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
                     <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-                      <div style={{ width:30, height:30, borderRadius:9, background:T.surfaceAlt, border:`1.5px solid ${T.border}`, display:"flex", alignItems:"center", justifyContent:"center", fontFamily:T.fontDisplay, fontWeight:800, fontSize:13, color:T.textSecond }}>{i+1}</div>
+                      <div style={{ width:30, height:30, borderRadius:9, background:T.surfaceAlt, border:`1.5px solid ${T.border}`, display:"flex", alignItems:"center", justifyContent:"center", fontWeight:800, fontSize:13, color:T.textSecond }}>{i+1}</div>
                       <span style={{ fontSize:12, fontWeight:600, color:T.textSecond }}>Action {i+1}</span>
                     </div>
                     <button className="a8d-btn a8d-btn-danger" style={{ padding:"4px 10px", fontSize:11 }} onClick={()=>removeAction(i)}>Supprimer</button>
                   </div>
                   <div style={{ display:"grid", gap:12 }}>
                     <Field label="Description"><textarea className="a8d-textarea" rows={2} value={a.description} onChange={e=>updateAction(i,"description",e.target.value)} placeholder="Décrire l'action corrective ou préventive…"/></Field>
-                    <div style={{ display:"grid", gridTemplateColumns:"2fr 1fr 1fr", gap:12 }}>
+                    <div style={{ display:"grid", gridTemplateColumns: isMobile ? "1fr" : "2fr 1fr 1fr", gap:12 }}>
                       <Field label="Responsable"><RespSelect value={a.responsable} emailValue={a.responsable_email} onChange={(nom,email)=>{ updateAction(i,"responsable",nom); updateAction(i,"responsable_email",email); }}/></Field>
                       <Field label="Échéance"><input type="date" className="a8d-input" value={a.echeance} onChange={e=>updateAction(i,"echeance",e.target.value)}/></Field>
                       <Field label="Type"><select className="a8d-select" value={a.type} onChange={e=>updateAction(i,"type",e.target.value)}><option>Corrective</option><option>Préventive</option><option>Immédiate</option></select></Field>
@@ -599,8 +708,8 @@ export default function Analyse8DModal({ open, initialValue, fe, onCancel, onSav
             <SectionTitle id={7} label="Vérification d'efficacité" icon="✅" pct={progress[7]}/>
             <div className="a8d-card" style={{ display:"grid", gap:18 }}>
               <Field label="Méthode de vérification"><div style={{ display:"flex", flexWrap:"wrap", gap:8 }}>{VERIF_EFFICACITE.map(m=><RPill key={m} name="verif" value={m} checked={data.methode_verif===m} onChange={()=>set("methode_verif",m)}>{m}</RPill>)}</div></Field>
-              <Field label="Résultat"><div style={{ display:"flex", gap:8 }}><RPill name="res" value="Efficace" checked={data.resultat_verif==="Efficace"} colorClass="c-green" onChange={()=>set("resultat_verif","Efficace")}>✓ Efficace</RPill><RPill name="res" value="Non efficace" checked={data.resultat_verif==="Non efficace"} colorClass="c-red" onChange={()=>set("resultat_verif","Non efficace")}>✗ Non efficace</RPill></div></Field>
-              <Field label="Date de vérification" style={{ maxWidth:220 }}><input type="date" className="a8d-input" value={data.date_verif} onChange={e=>set("date_verif",e.target.value)}/></Field>
+              <Field label="Résultat"><div style={{ display:"flex", gap:8, flexWrap:"wrap" }}><RPill name="res" value="Efficace" checked={data.resultat_verif==="Efficace"} colorClass="c-green" onChange={()=>set("resultat_verif","Efficace")}>✓ Efficace</RPill><RPill name="res" value="Non efficace" checked={data.resultat_verif==="Non efficace"} colorClass="c-red" onChange={()=>set("resultat_verif","Non efficace")}>✗ Non efficace</RPill></div></Field>
+              <Field label="Date de vérification" style={{ maxWidth: isMobile ? "unset" : 220 }}><input type="date" className="a8d-input" value={data.date_verif} onChange={e=>set("date_verif",e.target.value)}/></Field>
             </div>
           </section>
 
@@ -608,18 +717,18 @@ export default function Analyse8DModal({ open, initialValue, fe, onCancel, onSav
           <section ref={el=>(sectionRefs.current[8]=el)}>
             <SectionTitle id={8} label="Clôture" icon="🔒" pct={progress[8]}/>
             <div style={{ display:"grid", gap:16 }}>
-              <div className="a8d-card" style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16 }}>
+              <div className="a8d-card" style={{ display:"grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap:16 }}>
                 <Field label="Responsable Qualité"><RespSelect value={data.responsable_qualite} emailValue={data.responsable_qualite_email} onChange={(nom,email)=>setData(p=>({...p,responsable_qualite:nom,responsable_qualite_email:email}))}/></Field>
                 <Field label="Date de clôture"><input type="date" className="a8d-input" value={data.date_cloture} onChange={e=>set("date_cloture",e.target.value)}/></Field>
-                <Field label="NC récurrente ?" style={{ gridColumn:"1/-1" }}><div style={{ display:"flex", gap:8 }}><RPill name="rec" value="Oui" checked={data.recurrente==="Oui"} colorClass="c-red" onChange={()=>set("recurrente","Oui")}>🔄 Oui — récurrente</RPill><RPill name="rec" value="Non" checked={data.recurrente==="Non"} colorClass="c-green" onChange={()=>set("recurrente","Non")}>✓ Non — isolée</RPill></div></Field>
+                <Field label="NC récurrente ?" style={{ gridColumn: isMobile ? "unset" : "1/-1" }}><div style={{ display:"flex", gap:8, flexWrap:"wrap" }}><RPill name="rec" value="Oui" checked={data.recurrente==="Oui"} colorClass="c-red" onChange={()=>set("recurrente","Oui")}>🔄 Oui — récurrente</RPill><RPill name="rec" value="Non" checked={data.recurrente==="Non"} colorClass="c-green" onChange={()=>set("recurrente","Non")}>✓ Non — isolée</RPill></div></Field>
               </div>
               <div style={{ background:T.surface, borderRadius:T.r, border:`1.5px solid ${T.border}`, overflow:"hidden", boxShadow:T.shadow }}>
                 <div style={{ background:"linear-gradient(135deg,#0071e3 0%,#34aadc 100%)", padding:"14px 20px", display:"flex", alignItems:"center", gap:10 }}>
                   <span style={{ fontSize:18 }}>📊</span>
                   <span style={{ fontFamily:T.fontDisplay, fontWeight:700, fontSize:15, color:"#fff" }}>Récapitulatif 8D</span>
-                  <span style={{ marginLeft:"auto", background:"rgba(255,255,255,.2)", borderRadius:12, padding:"3px 10px", fontSize:12, fontWeight:700, color:"#fff" }}>{totalPct}% complété</span>
+                  <span style={{ marginLeft:"auto", background:"rgba(255,255,255,.2)", borderRadius:12, padding:"3px 10px", fontSize:12, fontWeight:700, color:"#fff" }}>{totalPct}%</span>
                 </div>
-                <div style={{ padding:"16px 20px", display:"grid", gridTemplateColumns:"1fr 1fr", gap:"10px 28px" }}>
+                <div style={{ padding:"16px 20px", display:"grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap:"10px 28px" }}>
                   {[["Îlot",data.ilot],["D3 — Actions immédiates",data.actions_immediates.length>0?`${data.actions_immediates.length} action(s)`:null],["D6 — Plan d'action",`${data.actions.length} action(s)`],["D7 — Résultat vérif.",data.resultat_verif],["Responsable Qualité",data.responsable_qualite],["NC récurrente",data.recurrente]].map(([k,v])=>(
                     <div key={k} style={{ paddingBottom:8, borderBottom:`1px solid ${T.border}` }}>
                       <div style={{ fontSize:10, fontWeight:600, color:T.textLight, textTransform:"uppercase", letterSpacing:".3px", marginBottom:2 }}>{k}</div>
@@ -628,17 +737,11 @@ export default function Analyse8DModal({ open, initialValue, fe, onCancel, onSav
                   ))}
                 </div>
               </div>
-              <div style={{ display:"flex", justifyContent:"flex-end", gap:10, paddingBottom:8 }}>
-                <button className="a8d-btn" onClick={handleEmail}>✉️ Envoyer récap</button>
-                {d8Complete && !cloture && (
-                  <button className="a8d-btn a8d-btn-cloture" onClick={handleCloture}>🔒 Clôturer le 8D</button>
-                )}
-                {cloture && (
-                  <div style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 14px", borderRadius:8, background:"#e8fdf0", border:"1.5px solid #30d158", fontSize:12, fontWeight:700, color:"#1a7a3f" }}>
-                    ✓ Clôturé — à marquer dans Silogue
-                  </div>
-                )}
-                <button className="a8d-btn a8d-btn-primary" style={{ background:saveBg, borderColor:saveBg }} onClick={handleSave} disabled={saveMsg==="saving"}>{saveLabel}</button>
+              <div style={{ display:"flex", gap:10, flexWrap:"wrap", justifyContent: isMobile ? "stretch" : "flex-end" }}>
+                {isMobile && <button className="a8d-btn" style={{ flex:1, justifyContent:"center" }} onClick={handleEmail}>✉️ Récap</button>}
+                {d8Complete && !cloture && <button className="a8d-btn a8d-btn-cloture" style={{ flex: isMobile ? 1 : "unset", justifyContent:"center" }} onClick={handleCloture}>🔒 Clôturer</button>}
+                {cloture && <div style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 14px", borderRadius:8, background:"#e8fdf0", border:"1.5px solid #30d158", fontSize:12, fontWeight:700, color:"#1a7a3f" }}>✓ Clôturé</div>}
+                <button className="a8d-btn a8d-btn-primary" style={{ flex: isMobile ? 1 : "unset", justifyContent:"center", background:saveBg, borderColor:saveBg }} onClick={handleSave} disabled={saveMsg==="saving"}>{saveLabel}</button>
               </div>
             </div>
           </section>
@@ -647,7 +750,7 @@ export default function Analyse8DModal({ open, initialValue, fe, onCancel, onSav
 
       {lightbox&&(
         <div style={{ position:"fixed", inset:0, zIndex:99999, background:"rgba(0,0,0,0.85)", display:"flex", alignItems:"center", justifyContent:"center", cursor:"zoom-out" }} onClick={()=>setLightbox(null)}>
-          <img src={lightbox} alt="zoom" style={{ maxWidth:"90vw", maxHeight:"90vh", borderRadius:12, boxShadow:"0 20px 60px rgba(0,0,0,.5)" }}/>
+          <img src={lightbox} alt="zoom" style={{ maxWidth:"100vw", maxHeight:"100vh", objectFit:"contain", borderRadius: isMobile ? 0 : 12 }}/>
         </div>
       )}
     </div>

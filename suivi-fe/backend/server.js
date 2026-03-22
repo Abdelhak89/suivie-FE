@@ -13,11 +13,18 @@ import usersRoutes        from "./routes/users.js";
 import ncFeRoutes         from "./routes/nc-fe.js";
 import groupeRoutes       from "./routes/groupe.js";
 import analysesRoutes     from "./routes/8d.js";
+import clientsRoutes      from "./routes/clients.js";  // ← NOUVEAU
+import adminRouter from "./routes/admin.js";
 
 const app  = express();
 const PORT = process.env.PORT || 4000;
 
-app.use(cors());
+app.use(cors({
+  origin: process.env.NODE_ENV === "production"
+    ? ["http://sqlc2"]
+    : "*",
+  credentials: true
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -39,6 +46,8 @@ app.use("/api/fe",          feRoutes);
 app.use("/api/8d",          analysesRoutes);
 app.use("/api/lancements",  lancementsRoutes);
 app.use("/api/fournisseurs", fournisseursRoutes);
+app.use("/api/clients",     clientsRoutes);            // ← NOUVEAU
+app.use("/api/admin", adminRouter);
 
 app.get("/", (req, res) => {
   res.json({ name: "API KEP Qualité", version: "2.0.0" });

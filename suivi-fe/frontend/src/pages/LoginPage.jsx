@@ -1,486 +1,202 @@
+// src/pages/LoginPage.jsx
+// Chaque site a sa propre URL : /login/soucy, /login/sens, /login/laxou, /login/kmtm
 import { useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 
-const KEP_BLUE = "#0A84C8";
-const KEP_DARK = "#0D1117";
+const API = import.meta.env.VITE_API_URL || "http://localhost:4000";
+
+const KEP_BLUE    = "#0A84C8";
+const KEP_DARK    = "#0D1117";
 const KEP_SURFACE = "#161B22";
-const KEP_BORDER = "#30363D";
-const KEP_TEXT = "#E6EDF3";
-const KEP_MUTED = "#8B949E";
-const KEP_ERROR = "#F85149";
+const KEP_BORDER  = "#30363D";
+const KEP_TEXT    = "#E6EDF3";
+const KEP_MUTED   = "#8B949E";
+const KEP_ERROR   = "#F85149";
 const KEP_SUCCESS = "#3FB950";
 
-const styles = {
-  page: {
-    minHeight: "100vh",
-    backgroundColor: KEP_DARK,
-    display: "flex",
-    flexDirection: "column",
-    fontFamily: "'DM Sans', 'Segoe UI', sans-serif",
-    color: KEP_TEXT,
-  },
-  header: {
-    display: "flex",
-    alignItems: "center",
-    gap: "12px",
-    padding: "20px 32px",
-    borderBottom: `1px solid ${KEP_BORDER}`,
-    backgroundColor: KEP_SURFACE,
-  },
-  logo: {
-    width: "36px",
-    height: "36px",
-    backgroundColor: KEP_BLUE,
-    borderRadius: "6px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontWeight: "700",
-    fontSize: "14px",
-    letterSpacing: "0.5px",
-    color: "#fff",
-    flexShrink: 0,
-  },
-  headerTitle: {
-    fontSize: "15px",
-    fontWeight: "600",
-    color: KEP_TEXT,
-    margin: 0,
-  },
-  headerSub: {
-    fontSize: "12px",
-    color: KEP_MUTED,
-    margin: 0,
-  },
-  main: {
-    flex: 1,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: "40px 16px",
-  },
-  container: {
-    width: "100%",
-    maxWidth: "840px",
-    display: "grid",
-    gridTemplateColumns: "1fr 1fr",
-    gap: "0",
-    border: `1px solid ${KEP_BORDER}`,
-    borderRadius: "12px",
-    overflow: "hidden",
-  },
-  publicZone: {
-    backgroundColor: KEP_BLUE,
-    padding: "48px 40px",
-    display: "flex",
-    flexDirection: "column",
-    justifyContent: "space-between",
-    position: "relative",
-    overflow: "hidden",
-  },
-  publicPattern: {
-    position: "absolute",
-    top: "-40px",
-    right: "-40px",
-    width: "200px",
-    height: "200px",
-    borderRadius: "50%",
-    border: "1px solid rgba(255,255,255,0.12)",
-    pointerEvents: "none",
-  },
-  publicPattern2: {
-    position: "absolute",
-    top: "-80px",
-    right: "-80px",
-    width: "320px",
-    height: "320px",
-    borderRadius: "50%",
-    border: "1px solid rgba(255,255,255,0.07)",
-    pointerEvents: "none",
-  },
-  publicBadge: {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: "6px",
-    backgroundColor: "rgba(255,255,255,0.15)",
-    border: "1px solid rgba(255,255,255,0.25)",
-    borderRadius: "20px",
-    padding: "4px 12px",
-    fontSize: "11px",
-    fontWeight: "600",
-    letterSpacing: "0.8px",
-    textTransform: "uppercase",
-    color: "#fff",
-    width: "fit-content",
-    marginBottom: "24px",
-  },
-  publicTitle: {
-    fontSize: "26px",
-    fontWeight: "700",
-    color: "#fff",
-    lineHeight: 1.2,
-    margin: "0 0 12px",
-  },
-  publicDesc: {
-    fontSize: "14px",
-    color: "rgba(255,255,255,0.75)",
-    lineHeight: 1.6,
-    margin: "0 0 32px",
-  },
-  publicBtn: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: "12px",
-    backgroundColor: "#fff",
-    color: KEP_BLUE,
-    border: "none",
-    borderRadius: "8px",
-    padding: "14px 20px",
-    fontSize: "14px",
-    fontWeight: "700",
-    cursor: "pointer",
-    transition: "transform 0.15s, box-shadow 0.15s",
-    letterSpacing: "0.2px",
-  },
-  publicBtnDisabled: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: "12px",
-    backgroundColor: "rgba(255,255,255,0.2)",
-    color: "rgba(255,255,255,0.45)",
-    border: "1px solid rgba(255,255,255,0.2)",
-    borderRadius: "8px",
-    padding: "14px 20px",
-    fontSize: "14px",
-    fontWeight: "600",
-    cursor: "not-allowed",
-    letterSpacing: "0.2px",
-  },
-  publicSites: {
-    display: "flex",
-    gap: "6px",
-    marginTop: "24px",
-    flexWrap: "wrap",
-  },
-  sitePill: {
-    backgroundColor: "rgba(255,255,255,0.12)",
-    border: "1px solid rgba(255,255,255,0.2)",
-    borderRadius: "4px",
-    padding: "3px 8px",
-    fontSize: "11px",
-    fontWeight: "600",
-    color: "rgba(255,255,255,0.85)",
-    letterSpacing: "0.5px",
-  },
-  sitePillActive: {
-    backgroundColor: "rgba(255,255,255,0.3)",
-    border: "1px solid rgba(255,255,255,0.6)",
-    borderRadius: "4px",
-    padding: "3px 8px",
-    fontSize: "11px",
-    fontWeight: "700",
-    color: "#fff",
-    letterSpacing: "0.5px",
-  },
-  loginZone: {
-    backgroundColor: KEP_SURFACE,
-    padding: "48px 40px",
-  },
-  loginLabel: {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: "6px",
-    backgroundColor: "rgba(63,185,80,0.1)",
-    border: "1px solid rgba(63,185,80,0.3)",
-    borderRadius: "20px",
-    padding: "4px 12px",
-    fontSize: "11px",
-    fontWeight: "600",
-    letterSpacing: "0.8px",
-    textTransform: "uppercase",
-    color: KEP_SUCCESS,
-    width: "fit-content",
-    marginBottom: "24px",
-  },
-  loginTitle: {
-    fontSize: "22px",
-    fontWeight: "700",
-    color: KEP_TEXT,
-    margin: "0 0 6px",
-  },
-  loginSub: {
-    fontSize: "13px",
-    color: KEP_MUTED,
-    margin: "0 0 32px",
-    lineHeight: 1.5,
-  },
-  fieldGroup: {
-    marginBottom: "16px",
-  },
-  fieldLabel: {
-    display: "block",
-    fontSize: "12px",
-    fontWeight: "600",
-    color: KEP_MUTED,
-    marginBottom: "8px",
-    letterSpacing: "0.5px",
-    textTransform: "uppercase",
-  },
-  input: {
-    width: "100%",
-    backgroundColor: KEP_DARK,
-    border: `1px solid ${KEP_BORDER}`,
-    borderRadius: "6px",
-    padding: "10px 14px",
-    fontSize: "14px",
-    color: KEP_TEXT,
-    outline: "none",
-    boxSizing: "border-box",
-    transition: "border-color 0.15s",
-    fontFamily: "inherit",
-  },
-  errorBox: {
-    backgroundColor: "rgba(248,81,73,0.1)",
-    border: "1px solid rgba(248,81,73,0.3)",
-    borderRadius: "6px",
-    padding: "10px 14px",
-    fontSize: "13px",
-    color: KEP_ERROR,
-    marginBottom: "16px",
-    display: "flex",
-    alignItems: "center",
-    gap: "8px",
-  },
-  submitBtn: {
-    width: "100%",
-    backgroundColor: KEP_BLUE,
-    color: "#fff",
-    border: "none",
-    borderRadius: "8px",
-    padding: "13px",
-    fontSize: "14px",
-    fontWeight: "700",
-    cursor: "pointer",
-    marginTop: "8px",
-    transition: "opacity 0.15s",
-    letterSpacing: "0.3px",
-    fontFamily: "inherit",
-  },
-  divider: {
-    borderTop: `1px solid ${KEP_BORDER}`,
-    margin: "24px 0",
-  },
-  footer: {
-    fontSize: "12px",
-    color: KEP_MUTED,
-    lineHeight: 1.6,
-  },
-  footerAccent: {
-    color: KEP_BLUE,
-    fontWeight: "600",
-  },
+const SITE_CONFIG = {
+  soucy: { label:"KEP Soucy",  color:"#0A84C8", bg:"#0D1F2D", border:"rgba(10,132,200,0.4)"  },
+  sens:  { label:"KEP Sens",   color:"#BF5AF2", bg:"#1A0D2D", border:"rgba(191,90,242,0.4)"  },
+  laxou: { label:"KEP Laxou",  color:"#FF9F0A", bg:"#2D1A00", border:"rgba(255,159,10,0.4)"  },
+  kmtm:  { label:"KEP KMTM",   color:"#30D158", bg:"#0D2D14", border:"rgba(48,209,88,0.4)"   },
 };
 
-export default function LoginPage({ onLoginSuccess }) {
-  const { site } = useParams();   // défini sur /login/:site, undefined sur /login
-  const navigate  = useNavigate();
+// Page d'accueil sans site — liste les 4 sites
+function SiteSelector() {
+  const navigate = useNavigate();
+  return (
+    <div style={{ minHeight:"100vh", backgroundColor:KEP_DARK, display:"flex", flexDirection:"column", fontFamily:"'DM Sans','Segoe UI',sans-serif", color:KEP_TEXT }}>
+      <header style={{ display:"flex", alignItems:"center", gap:12, padding:"18px 32px", borderBottom:`1px solid ${KEP_BORDER}`, backgroundColor:KEP_SURFACE }}>
+        <div style={{ width:34, height:34, backgroundColor:KEP_BLUE, borderRadius:6, display:"flex", alignItems:"center", justifyContent:"center", fontWeight:800, fontSize:13, color:"#fff" }}>FE</div>
+        <div>
+          <div style={{ fontSize:14, fontWeight:700, color:KEP_TEXT }}>Suivi F.E — KEP Métal</div>
+          <div style={{ fontSize:11, color:KEP_MUTED }}>Sélectionnez votre site</div>
+        </div>
+      </header>
+      <main style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", padding:"40px 16px" }}>
+        <div style={{ width:"100%", maxWidth:480 }}>
+          <div style={{ textAlign:"center", marginBottom:32 }}>
+            <div style={{ fontSize:22, fontWeight:700, color:KEP_TEXT, marginBottom:8 }}>Choisissez votre site</div>
+            <div style={{ fontSize:13, color:KEP_MUTED }}>Chaque site a sa propre page de connexion</div>
+          </div>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
+            {Object.entries(SITE_CONFIG).map(([code, s]) => (
+              <button key={code} onClick={() => navigate(`/login/${code}`)}
+                style={{ background:s.bg, border:`2px solid ${s.border}`, borderRadius:12, padding:"20px 16px", cursor:"pointer", textAlign:"left", transition:"all 0.15s", display:"flex", flexDirection:"column", gap:6 }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = s.color; e.currentTarget.style.transform = "translateY(-2px)"; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = s.border; e.currentTarget.style.transform = "none"; }}
+              >
+                <div style={{ fontSize:12, fontWeight:800, letterSpacing:"0.8px", color:s.color, textTransform:"uppercase" }}>{code.toUpperCase()}</div>
+                <div style={{ fontSize:15, fontWeight:600, color:KEP_TEXT }}>{s.label}</div>
+                <div style={{ fontSize:11, color:KEP_MUTED, marginTop:2 }}>Accéder →</div>
+              </button>
+            ))}
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}
 
+export default function LoginPage({ onLoginSuccess }) {
+  const navigate         = useNavigate();
+  const { site: siteRaw } = useParams();
+  const site             = siteRaw?.toLowerCase();
+  const siteConf         = SITE_CONFIG[site];
+
+  // Hooks toujours déclarés — pas de return conditionnel avant eux
   const [email,      setEmail]      = useState("");
   const [password,   setPassword]   = useState("");
   const [loading,    setLoading]    = useState(false);
   const [error,      setError]      = useState(null);
   const [inputFocus, setInputFocus] = useState(null);
-  const [pubHover,   setPubHover]   = useState(false);
+
+  // Pas de site dans l'URL → page de sélection de site (après les hooks)
+  if (!site || !siteConf) return <SiteSelector />;
 
   const handleLogin = async (e) => {
     e.preventDefault();
-    if (!email || !password) {
-      setError("Identifiant et mot de passe requis.");
-      return;
-    }
-    setLoading(true);
-    setError(null);
+    if (!email || !password) { setError("Identifiant et mot de passe requis."); return; }
+    setLoading(true); setError(null);
     try {
-      const API = import.meta.env.VITE_API_URL || "http://localhost:4000";
       const res  = await fetch(`${API}/api/auth/login`, {
-        method:  "POST",
-        headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ email, password }),
+        method:"POST", headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({ email, password }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Connexion refusée.");
-      // Stocke token + infos user
       localStorage.setItem("kep_token", data.token);
       localStorage.setItem("kep_user",  JSON.stringify(data.user));
       if (onLoginSuccess) onLoginSuccess(data);
       else navigate("/accueil");
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
+    } catch(err) { setError(err.message); }
+    finally { setLoading(false); }
   };
-
-  const handlePublicAccess = () => {
-    navigate(`/declaration-fe/${site}`);
-  };
-
-  const getFocusBorder = (name) => ({
-    ...styles.input,
-    borderColor: inputFocus === name ? KEP_BLUE : KEP_BORDER,
-  });
 
   return (
-    <div style={styles.page}>
-      {/* ── Header ── */}
-      <header style={styles.header}>
-        <div style={styles.logo}>KEP</div>
+    <div style={{ minHeight:"100vh", backgroundColor:KEP_DARK, display:"flex", flexDirection:"column", fontFamily:"'DM Sans','Segoe UI',sans-serif", color:KEP_TEXT }}>
+
+      {/* Header */}
+      <header style={{ display:"flex", alignItems:"center", gap:12, padding:"18px 32px", borderBottom:`1px solid ${KEP_BORDER}`, backgroundColor:KEP_SURFACE }}>
+        <div style={{ width:34, height:34, backgroundColor:siteConf.color, borderRadius:6, display:"flex", alignItems:"center", justifyContent:"center", fontWeight:800, fontSize:13, color:"#fff" }}>FE</div>
         <div>
-          <p style={styles.headerTitle}>KEP Qualité</p>
-          <p style={styles.headerSub}>Suivi des non-conformités · Déclaration FE</p>
+          <div style={{ fontSize:14, fontWeight:700, color:KEP_TEXT }}>Suivi F.E — {siteConf.label}</div>
+          <div style={{ fontSize:11, color:KEP_MUTED }}>Gestion des fiches de non conformité</div>
         </div>
+        {/* Lien changer de site */}
+        <button onClick={() => navigate("/login")}
+          style={{ marginLeft:"auto", fontSize:12, color:KEP_MUTED, background:"none", border:`1px solid ${KEP_BORDER}`, borderRadius:6, padding:"5px 12px", cursor:"pointer", fontFamily:"inherit" }}>
+          ← Changer de site
+        </button>
       </header>
 
-      {/* ── Main ── */}
-      <main style={styles.main}>
-        <div style={{ ...styles.container, gridTemplateColumns: "1fr 1fr" }}>
+      <main style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", padding:"40px 16px" }}>
+        <div style={{ width:"100%", maxWidth:840, display:"grid", gridTemplateColumns:"var(--login-cols, 1fr 1fr)", gap:0, border:`1px solid ${KEP_BORDER}`, borderRadius:12, overflow:"hidden" }}>
 
-          {/* ── Zone gauche : accès public FE ── */}
-          <div style={styles.publicZone}>
-            <div style={styles.publicPattern} />
-            <div style={styles.publicPattern2} />
+          {/* ── Gauche : déclaration FE publique ── */}
+          <div style={{ background:siteConf.bg, padding:"44px 40px", display:"flex", flexDirection:"column", justifyContent:"space-between", position:"relative", overflow:"hidden", borderRight:`1px solid ${KEP_BORDER}` }}>
+            {/* Cercles décoratifs */}
+            <div style={{ position:"absolute", top:-40, right:-40, width:200, height:200, borderRadius:"50%", border:`1px solid ${siteConf.color}20`, pointerEvents:"none" }}/>
+            <div style={{ position:"absolute", top:-80, right:-80, width:320, height:320, borderRadius:"50%", border:`1px solid ${siteConf.color}10`, pointerEvents:"none" }}/>
 
             <div>
-              <div style={styles.publicBadge}>
-                <span style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: "#fff", display: "inline-block" }} />
-                Accès libre
+              <div style={{ display:"inline-flex", alignItems:"center", gap:6, background:`${siteConf.color}20`, border:`1px solid ${siteConf.color}40`, borderRadius:20, padding:"4px 12px", fontSize:11, fontWeight:700, letterSpacing:"0.8px", textTransform:"uppercase", color:siteConf.color, marginBottom:24 }}>
+                <span style={{ width:6, height:6, borderRadius:"50%", background:siteConf.color, display:"inline-block" }}/>
+                Accès libre — {site.toUpperCase()}
               </div>
 
-              <h2 style={styles.publicTitle}>
-                Déclaration<br />Fin d'Étape
+              <h2 style={{ fontSize:22, fontWeight:700, color:KEP_TEXT, margin:"0 0 12px", lineHeight:1.3 }}>
+                Déclarer une fiche<br/>de non conformité
               </h2>
-
-              <p style={styles.publicDesc}>
-                {site
-                  ? <>Site <strong style={{ color: "#fff" }}>{site.toUpperCase()}</strong> — déclarez une fin d'étape depuis l'atelier. Aucune connexion requise.</>
-                  : "Accédez via l'URL de votre site pour déclarer une fin d'étape."}
+              <p style={{ fontSize:13, color:KEP_MUTED, margin:"0 0 28px", lineHeight:1.6 }}>
+                Site <strong style={{ color:KEP_TEXT }}>{siteConf.label}</strong> — accès sans connexion requise.
               </p>
 
-              {site ? (
-                <button
-                  style={{
-                    ...styles.publicBtn,
-                    transform:  pubHover ? "translateY(-1px)" : "none",
-                    boxShadow:  pubHover ? "0 6px 20px rgba(0,0,0,0.25)" : "none",
-                  }}
-                  onMouseEnter={() => setPubHover(true)}
-                  onMouseLeave={() => setPubHover(false)}
-                  onClick={handlePublicAccess}
-                >
-                  <span>Accéder à la déclaration</span>
-                  <span style={{ fontSize: "18px" }}>→</span>
-                </button>
-              ) : (
-                <div style={styles.publicBtnDisabled}>
-                  <span>Sélectionnez un site via l'URL</span>
-                  <span style={{ fontSize: "16px" }}>⊘</span>
-                </div>
-              )}
+              <button
+                onClick={() => navigate(`/declaration-fe/${site}`)}
+                style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, backgroundColor:siteConf.color, color:"#fff", border:"none", borderRadius:8, padding:"14px 20px", fontSize:14, fontWeight:700, cursor:"pointer", width:"100%", transition:"all 0.15s" }}
+                onMouseEnter={e => { e.currentTarget.style.opacity = "0.9"; e.currentTarget.style.transform = "translateY(-1px)"; }}
+                onMouseLeave={e => { e.currentTarget.style.opacity = "1";   e.currentTarget.style.transform = "none"; }}
+              >
+                <span>Déclarer une FE</span>
+                <span style={{ fontSize:18 }}>→</span>
+              </button>
             </div>
 
-            <div>
-              <p style={{ fontSize: "11px", color: "rgba(255,255,255,0.5)", margin: "0 0 8px", textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: "600" }}>
-                Sites actifs
-              </p>
-              <div style={styles.publicSites}>
-                {["SOUCY", "SENS", "LAXOU", "KMTM"].map((s) => (
-                  <span
-                    key={s}
-                    style={s.toLowerCase() === site ? styles.sitePillActive : styles.sitePill}
-                  >
-                    {s}
-                  </span>
-                ))}
-              </div>
+            <div style={{ marginTop:24 }}>
+              <div style={{ fontSize:11, color:KEP_MUTED, marginBottom:8, textTransform:"uppercase", letterSpacing:"0.5px", fontWeight:600 }}>Site actif</div>
+              <span style={{ background:`${siteConf.color}30`, border:`1px solid ${siteConf.color}60`, borderRadius:4, padding:"3px 10px", fontSize:12, fontWeight:700, color:siteConf.color, letterSpacing:"0.5px" }}>
+                {site.toUpperCase()}
+              </span>
             </div>
           </div>
 
-          {/* ── Zone droite : connexion qualité ── */}
-          <div style={styles.loginZone}>
-            <div style={styles.loginLabel}>
-              <span style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: KEP_SUCCESS, display: "inline-block" }} />
+          {/* ── Droite : login qualitien ── */}
+          <div style={{ backgroundColor:KEP_SURFACE, padding:"44px 40px" }}>
+            <div style={{ display:"inline-flex", alignItems:"center", gap:6, background:"rgba(63,185,80,0.10)", border:"1px solid rgba(63,185,80,0.3)", borderRadius:20, padding:"4px 12px", fontSize:11, fontWeight:700, letterSpacing:"0.8px", textTransform:"uppercase", color:KEP_SUCCESS, marginBottom:24 }}>
+              <span style={{ width:6, height:6, borderRadius:"50%", background:KEP_SUCCESS, display:"inline-block" }}/>
               Espace qualité
             </div>
 
-            <h2 style={styles.loginTitle}>Connexion</h2>
-            <p style={styles.loginSub}>
-              Réservé aux qualitiens KEP.<br />
-              Accès dashboard, analyses et gestion NC.
+            <h2 style={{ fontSize:22, fontWeight:700, color:KEP_TEXT, margin:"0 0 6px" }}>Connexion</h2>
+            <p style={{ fontSize:13, color:KEP_MUTED, margin:"0 0 28px", lineHeight:1.5 }}>
+              Qualitiens & responsables {siteConf.label}.<br/>Accès dashboard, analyses et gestion NC.
             </p>
 
             <form onSubmit={handleLogin}>
               {error && (
-                <div style={styles.errorBox}>
-                  <span style={{ fontSize: "14px" }}>⚠</span>
-                  {error}
+                <div style={{ background:"rgba(248,81,73,0.1)", border:"1px solid rgba(248,81,73,0.3)", borderRadius:6, padding:"10px 14px", fontSize:13, color:KEP_ERROR, marginBottom:16, display:"flex", alignItems:"center", gap:8 }}>
+                  <span>⚠</span>{error}
                 </div>
               )}
-
-              <div style={styles.fieldGroup}>
-                <label style={styles.fieldLabel} htmlFor="email">Identifiant</label>
-                <input
-                  id="email"
-                  type="text"
-                  placeholder="prenom.nom@kep-metal.fr"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  onFocus={() => setInputFocus("email")}
-                  onBlur={() => setInputFocus(null)}
-                  style={getFocusBorder("email")}
-                  autoComplete="username"
+              <div style={{ marginBottom:14 }}>
+                <label style={{ display:"block", fontSize:11, fontWeight:700, color:KEP_MUTED, marginBottom:7, letterSpacing:"0.5px", textTransform:"uppercase" }}>Identifiant</label>
+                <input type="text" placeholder="prenom.nom@kep-metal.fr" value={email}
+                  onChange={e=>setEmail(e.target.value)} onFocus={()=>setInputFocus("email")} onBlur={()=>setInputFocus(null)}
                   disabled={loading}
+                  style={{ width:"100%", background:KEP_DARK, border:`1px solid ${inputFocus==="email"?siteConf.color:KEP_BORDER}`, borderRadius:6, padding:"10px 13px", fontSize:14, color:KEP_TEXT, outline:"none", boxSizing:"border-box", fontFamily:"inherit", transition:"border-color 0.15s" }}
                 />
               </div>
-
-              <div style={styles.fieldGroup}>
-                <label style={styles.fieldLabel} htmlFor="password">Mot de passe</label>
-                <input
-                  id="password"
-                  type="password"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  onFocus={() => setInputFocus("password")}
-                  onBlur={() => setInputFocus(null)}
-                  style={getFocusBorder("password")}
-                  autoComplete="current-password"
+              <div style={{ marginBottom:20 }}>
+                <label style={{ display:"block", fontSize:11, fontWeight:700, color:KEP_MUTED, marginBottom:7, letterSpacing:"0.5px", textTransform:"uppercase" }}>Mot de passe</label>
+                <input type="password" placeholder="••••••••" value={password}
+                  onChange={e=>setPassword(e.target.value)} onFocus={()=>setInputFocus("pass")} onBlur={()=>setInputFocus(null)}
                   disabled={loading}
+                  style={{ width:"100%", background:KEP_DARK, border:`1px solid ${inputFocus==="pass"?siteConf.color:KEP_BORDER}`, borderRadius:6, padding:"10px 13px", fontSize:14, color:KEP_TEXT, outline:"none", boxSizing:"border-box", fontFamily:"inherit", transition:"border-color 0.15s" }}
                 />
               </div>
-
-              <button
-                type="submit"
-                style={{
-                  ...styles.submitBtn,
-                  opacity: loading ? 0.6 : 1,
-                  cursor:  loading ? "not-allowed" : "pointer",
-                }}
-                disabled={loading}
-              >
-                {loading ? "Connexion en cours…" : "Se connecter"}
+              <button type="submit" disabled={loading}
+                style={{ width:"100%", background:siteConf.color, color:"#fff", border:"none", borderRadius:8, padding:13, fontSize:14, fontWeight:700, cursor:loading?"not-allowed":"pointer", opacity:loading?0.6:1, fontFamily:"inherit", letterSpacing:"0.3px" }}>
+                {loading?"Connexion…":"Se connecter →"}
               </button>
             </form>
 
-            <div style={styles.divider} />
-
-            <p style={styles.footer}>
-              Compte bloqué ou mot de passe oublié ?{" "}
-              <span style={styles.footerAccent}>Contactez l'IT ou le responsable qualité</span>.
+            <div style={{ borderTop:`1px solid ${KEP_BORDER}`, margin:"24px 0" }}/>
+            <p style={{ fontSize:12, color:KEP_MUTED, lineHeight:1.6, margin:0 }}>
+              Compte bloqué ?{" "}
+              <span style={{ color:siteConf.color, fontWeight:600 }}>Contactez le responsable qualité.</span>
             </p>
           </div>
-
         </div>
       </main>
     </div>
